@@ -19,7 +19,7 @@ object DefaultBlockLists {
             name = "Steven Black Unified",
             description = "Consolidated hosts list blocking adware, malware, fake sites, and tracking.",
             url = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
-            isEnabled = true,
+            isEnabled = false,
             ruleCount = 65000,
             category = RuleCategory.ADS
         ),
@@ -28,7 +28,7 @@ object DefaultBlockLists {
             name = "EasyList",
             description = "The primary filter list that removes advert banners and tracking scripts.",
             url = "https://easylist.to/easylist/easylist.txt",
-            isEnabled = true,
+            isEnabled = false,
             ruleCount = 35000,
             category = RuleCategory.ADS
         ),
@@ -37,7 +37,7 @@ object DefaultBlockLists {
             name = "EasyPrivacy",
             description = "Protection against web bugs, analytical trackers, and user monitoring scripts.",
             url = "https://easylist.to/easylist/easyprivacy.txt",
-            isEnabled = true,
+            isEnabled = false,
             ruleCount = 28000,
             category = RuleCategory.TRACKERS
         ),
@@ -46,7 +46,7 @@ object DefaultBlockLists {
             name = "Peter Lowe's List",
             description = "Clean, curated list of known ad servers, web bugs, and analytical beacons.",
             url = "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext",
-            isEnabled = true,
+            isEnabled = false,
             ruleCount = 3800,
             category = RuleCategory.ADS
         ),
@@ -73,7 +73,7 @@ object DefaultBlockLists {
             name = "OEM & Device Telemetry",
             description = "Blocks background analytics and diagnostic reporting from device manufacturers.",
             url = "https://raw.githubusercontent.com/notracking/hosts-blocklists/master/hostnames.txt",
-            isEnabled = true,
+            isEnabled = false,
             ruleCount = 12000,
             category = RuleCategory.OEM_SPYWARE
         ),
@@ -82,7 +82,7 @@ object DefaultBlockLists {
             name = "URLhaus Malware Defense",
             description = "Community database of active malware distribution and ransomware hosts.",
             url = "https://urlhaus.abuse.ch/downloads/hostfile/",
-            isEnabled = true,
+            isEnabled = false,
             ruleCount = 8500,
             category = RuleCategory.MALWARE
         ),
@@ -91,7 +91,7 @@ object DefaultBlockLists {
             name = "Hägezi Multi PRO",
             description = "High-accuracy multi-engine ad, tracking, and malware defense with zero false positives.",
             url = "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/pro.txt",
-            isEnabled = true,
+            isEnabled = false,
             ruleCount = 145000,
             category = RuleCategory.ADS
         ),
@@ -100,7 +100,7 @@ object DefaultBlockLists {
             name = "OISD Big Filter",
             description = "Industry standard anti-tracking and advert blocking list maintained by community telemetry.",
             url = "https://big.oisd.nl",
-            isEnabled = true,
+            isEnabled = false,
             ruleCount = 120000,
             category = RuleCategory.ADS
         ),
@@ -136,7 +136,7 @@ object DefaultBlockLists {
             name = "Phishing Army Extended",
             description = "Real-time threat intelligence protecting against credential phishing and fraud.",
             url = "https://phishing.army/download/phishing_army_blocklist_extended.txt",
-            isEnabled = true,
+            isEnabled = false,
             ruleCount = 22000,
             category = RuleCategory.MALWARE
         ),
