@@ -148,6 +148,8 @@ fun SettingsScreen(
     val safeSearchEnabled by viewModel.safeSearchFlow.collectAsState()
     val youtubeRestricted by viewModel.youtubeRestrictedFlow.collectAsState()
     val isRootAvailable by viewModel.isRootAvailableFlow.collectAsState()
+    val isCaInstalled by viewModel.isCaInstalledFlow.collectAsState()
+    val httpsFilteringEnabled by viewModel.httpsFilteringEnabledFlow.collectAsState()
 
     // Application & Network Flows
     val whitelist by viewModel.whitelist.collectAsState()
@@ -414,6 +416,27 @@ fun SettingsScreen(
                     onCheckedChange = { viewModel.setAutoReconnect(it) }
                 )
 
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                // HTTPS Deep Filtering (MITM)
+                SettingsToggleRow(
+                    title = "HTTPS Deep Filtering (MITM)",
+                    subtitle = if (isCaInstalled) {
+                        "Decrypt and filter in-app HTTPS traffic, block URL-level ads, and strip tracking queries"
+                    } else {
+                        "Requires Root CA certificate installation. Tap to set up CA certificate."
+                    },
+                    icon = Icons.Filled.Security,
+                    checked = httpsFilteringEnabled && isCaInstalled,
+                    onCheckedChange = { enabled ->
+                        if (isCaInstalled) {
+                            viewModel.setHttpsFilteringEnabled(enabled)
+                        } else {
+                            showCaInstallConfirm = true
+                        }
+                    }
+                )
+
                 if (isRootAvailable) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
@@ -422,7 +445,7 @@ fun SettingsScreen(
                         title = "Install Magisk Root System CA",
                         subtitle = "Write Anis CA to /data/adb/modules for HTTPS inspection across all apps",
                         icon = Icons.Filled.VpnKey,
-                        badge = "Root",
+                        badge = if (isCaInstalled) "Installed" else "Root",
                         onClick = { showCaInstallConfirm = true }
                     )
                 }

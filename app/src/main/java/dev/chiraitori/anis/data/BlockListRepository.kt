@@ -210,6 +210,18 @@ class BlockListRepository(private val context: Context) {
         return activeDomainsSet
     }
 
+    fun isDomainBlocked(domain: String): Boolean {
+        val clean = domain.lowercase().trim()
+        if (activeDomainsSet.contains(clean)) return true
+        var dotIdx = clean.indexOf('.')
+        while (dotIdx != -1) {
+            val parent = clean.substring(dotIdx + 1)
+            if (activeDomainsSet.contains(parent)) return true
+            dotIdx = clean.indexOf('.', dotIdx + 1)
+        }
+        return false
+    }
+
     fun reloadActiveDomains() {
         val newSet = mutableSetOf<String>()
 

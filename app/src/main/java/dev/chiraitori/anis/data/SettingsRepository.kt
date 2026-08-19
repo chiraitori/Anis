@@ -104,6 +104,16 @@ class SettingsRepository(private val context: Context) {
             _isCaDismissedFlow.value = value
         }
 
+    private val _httpsFilteringEnabledFlow = MutableStateFlow(prefs.getBoolean(KEY_HTTPS_FILTERING, false))
+    val httpsFilteringEnabledFlow: StateFlow<Boolean> = _httpsFilteringEnabledFlow.asStateFlow()
+
+    var httpsFilteringEnabled: Boolean
+        get() = _httpsFilteringEnabledFlow.value
+        set(value) {
+            prefs.edit().putBoolean(KEY_HTTPS_FILTERING, value).apply()
+            _httpsFilteringEnabledFlow.value = value
+        }
+
     private fun loadStringSet(key: String): Set<String> {
         val json = prefs.getString(key, null) ?: return emptySet()
         return try {
@@ -611,6 +621,7 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_HAPTICS_ENABLED = "haptics_feedback_enabled"
         private const val KEY_CA_INSTALLED = "ca_certificate_installed"
         private const val KEY_CA_DISMISSED = "ca_banner_dismissed"
+        private const val KEY_HTTPS_FILTERING = "https_deep_filtering_enabled"
 
         @Volatile
         private var instance: SettingsRepository? = null

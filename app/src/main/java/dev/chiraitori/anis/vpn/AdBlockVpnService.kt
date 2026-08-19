@@ -41,6 +41,7 @@ class AdBlockVpnService : VpnService() {
     private lateinit var queryLogRepository: QueryLogRepository
     private lateinit var dnsEngine: DnsEngine
     private lateinit var dohClient: DohClient
+    private var httpsProxyServer: dev.chiraitori.anis.vpn.proxy.HttpsMitmProxyServer? = null
 
     // Upstream DNS forwarding socket
     private var forwardSocket: DatagramSocket? = null
@@ -62,6 +63,23 @@ class AdBlockVpnService : VpnService() {
                 false
             }
         }
+
+        val caManager = dev.chiraitori.anis.vpn.CertificateAuthorityManager.getInstance(applicationContext)
+        val dynamicCertGen = dev.chiraitori.anis.vpn.ssl.DynamicCertificateGenerator(caManager)
+        val filterEngine = dev.chiraitori.anis.vpn.filter.HttpsFilterEngine(blockListRepository, settingsRepository)
+        httpsProxyServer = dev.chiraitori.anis.vpn.proxy.HttpsMitmProxyServer(
+            dynamicCertGen = dynamicCertGen,
+            filterEngine = filterEngine,
+            queryLogRepository = queryLogRepository,
+            socketProtector = { socket ->
+                try {
+                    protect(socket)
+                } catch (e: Exception) {
+                    false
+                }
+            }
+        )
+
         createNotificationChannel()
     }
 
@@ -133,6 +151,12 @@ class AdBlockVpnService : VpnService() {
             forwardSocket = DatagramSocket().also { sock ->
                 protect(sock)
                 sock.soTimeout = 4000
+            }
+
+            val enableHttps = settingsRepository.httpsFilteringEnabledFlow.value && settingsRepository.isCaInstalledFlow.value
+            if (enableHttps) {
+                httpsProxyServer?.start(dev.chiraitori.anis.vpn.proxy.HttpsMitmProxyServer.DEFAULT_PROXY_PORT)
+                Log.i(TAG, "VPN HTTPS MITM Proxy started on port ${dev.chiraitori.anis.vpn.proxy.HttpsMitmProxyServer.DEFAULT_PROXY_PORT}")
             }
 
             VpnState.setRunning(true)
@@ -409,6 +433,8 @@ class AdBlockVpnService : VpnService() {
             // Ignore
         }
         vpnInterface = null
+
+        httpsProxyServer?.stop()
 
         VpnState.setRunning(false)
         stopForeground(STOP_FOREGROUND_REMOVE)

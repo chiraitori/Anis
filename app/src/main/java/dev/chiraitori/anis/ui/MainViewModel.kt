@@ -78,6 +78,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val isCaInstalledFlow = settingsRepo.isCaInstalledFlow
     val isCaDismissedFlow = settingsRepo.isCaDismissedFlow
+    val httpsFilteringEnabledFlow = settingsRepo.httpsFilteringEnabledFlow
+
+    fun setHttpsFilteringEnabled(enabled: Boolean) {
+        settingsRepo.httpsFilteringEnabled = enabled
+        vpnController.restartProtection()
+    }
 
     private val _safeSearchFlow = MutableStateFlow(settingsRepo.safeSearchEnabled)
     val safeSearchFlow = _safeSearchFlow.asStateFlow()

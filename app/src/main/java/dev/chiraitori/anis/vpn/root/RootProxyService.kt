@@ -41,6 +41,7 @@ class RootProxyService : Service() {
 
     private var udpSocket: DatagramSocket? = null
     private var tcpServerSocket: ServerSocket? = null
+    private var httpsProxyServer: dev.chiraitori.anis.vpn.proxy.HttpsMitmProxyServer? = null
 
     private lateinit var blockListRepository: BlockListRepository
     private lateinit var settingsRepository: SettingsRepository
@@ -55,6 +56,16 @@ class RootProxyService : Service() {
         queryLogRepository = QueryLogRepository.instance
         dnsEngine = DnsEngine(blockListRepository, settingsRepository)
         dohClient = DohClient()
+
+        val caManager = dev.chiraitori.anis.vpn.CertificateAuthorityManager.getInstance(applicationContext)
+        val dynamicCertGen = dev.chiraitori.anis.vpn.ssl.DynamicCertificateGenerator(caManager)
+        val filterEngine = dev.chiraitori.anis.vpn.filter.HttpsFilterEngine(blockListRepository, settingsRepository)
+        httpsProxyServer = dev.chiraitori.anis.vpn.proxy.HttpsMitmProxyServer(
+            dynamicCertGen = dynamicCertGen,
+            filterEngine = filterEngine,
+            queryLogRepository = queryLogRepository
+        )
+
         createNotificationChannel()
     }
 
@@ -75,10 +86,14 @@ class RootProxyService : Service() {
         if (VpnState.isRunningFlow.value) return
 
         try {
+            val enableHttps = settingsRepository.httpsFilteringEnabledFlow.value && settingsRepository.isCaInstalledFlow.value
+
             // Apply iptables redirection rules
             val success = RootIptablesManager.setupRules(
                 context = this,
-                localPort = RootIptablesManager.DEFAULT_DNS_PORT
+                localPort = RootIptablesManager.DEFAULT_DNS_PORT,
+                httpsPort = RootIptablesManager.DEFAULT_HTTPS_PORT,
+                enableHttpsFiltering = enableHttps
             )
 
             if (!success) {
@@ -99,6 +114,11 @@ class RootProxyService : Service() {
                 50,
                 InetAddress.getByName("127.0.0.1")
             )
+
+            if (enableHttps) {
+                httpsProxyServer?.start(RootIptablesManager.DEFAULT_HTTPS_PORT)
+                Log.i(TAG, "Root HTTPS MITM Proxy started on port ${RootIptablesManager.DEFAULT_HTTPS_PORT}")
+            }
 
             VpnState.setRunning(true)
             startUdpServer()
@@ -332,6 +352,8 @@ class RootProxyService : Service() {
             // Ignore
         }
         tcpServerSocket = null
+
+        httpsProxyServer?.stop()
 
         // Teardown iptables rules (vital for retaining internet connectivity)
         RootIptablesManager.teardownRules()

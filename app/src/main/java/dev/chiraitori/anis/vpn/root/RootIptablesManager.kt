@@ -12,18 +12,21 @@ object RootIptablesManager {
     private const val NAT_CHAIN = "ANIS_DNS"
     private const val FILTER_CHAIN = "ANIS_DOT"
     const val DEFAULT_DNS_PORT = 5354
+    const val DEFAULT_HTTPS_PORT = 8443
 
     /**
      * Applies iptables rules to transparently intercept all port 53 DNS queries
-     * and redirect them to local listener port (5354).
+     * and optionally port 443 HTTPS traffic to local proxy ports.
      */
     fun setupRules(
         context: Context,
         localPort: Int = DEFAULT_DNS_PORT,
+        httpsPort: Int = DEFAULT_HTTPS_PORT,
+        enableHttpsFiltering: Boolean = false,
         whitelistedUids: Set<Int> = emptySet()
     ): Boolean {
         val appUid = context.applicationInfo.uid
-        Log.i(TAG, "Setting up Root iptables redirection to port $localPort (appUid=$appUid)")
+        Log.i(TAG, "Setting up Root iptables redirection to port $localPort / https $httpsPort (appUid=$appUid, https=$enableHttpsFiltering)")
 
         // Teardown first for idempotency
         teardownRules()
@@ -35,7 +38,7 @@ object RootIptablesManager {
 
         // 2. Setup NAT Chain for IPv4
         commands.add("iptables -t nat -N $NAT_CHAIN 2>/dev/null || true")
-        // Skip our own app so outbound DNS/DoH doesn't loop
+        // Skip our own app so outbound DNS/DoH/HTTPS doesn't loop
         commands.add("iptables -t nat -A $NAT_CHAIN -m owner --uid-owner $appUid -j RETURN")
         // Skip whitelisted apps
         for (uid in whitelistedUids) {
@@ -44,6 +47,12 @@ object RootIptablesManager {
         // Redirect UDP and TCP DNS to local port
         commands.add("iptables -t nat -A $NAT_CHAIN -p udp --dport 53 -j REDIRECT --to-ports $localPort")
         commands.add("iptables -t nat -A $NAT_CHAIN -p tcp --dport 53 -j REDIRECT --to-ports $localPort")
+
+        // Redirect HTTP and HTTPS to local MITM proxy if enabled
+        if (enableHttpsFiltering) {
+            commands.add("iptables -t nat -A $NAT_CHAIN -p tcp --dport 80 -j REDIRECT --to-ports $httpsPort")
+            commands.add("iptables -t nat -A $NAT_CHAIN -p tcp --dport 443 -j REDIRECT --to-ports $httpsPort")
+        }
         commands.add("iptables -t nat -A OUTPUT -j $NAT_CHAIN")
 
         // 3. Block DoT (Port 853) to force apps to use standard DNS on port 53

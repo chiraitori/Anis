@@ -47,6 +47,37 @@ class CertificateAuthorityManager(private val context: Context) {
     }
 
     /**
+     * Retrieves the Root CA X509Certificate instance.
+     */
+    fun getRootCaCertificate(): X509Certificate {
+        val pem = getOrCreateCaCertificatePem()
+        val certFactory = CertificateFactory.getInstance("X.509")
+        return certFactory.generateCertificate(
+            ByteArrayInputStream(pem.toByteArray(Charsets.UTF_8))
+        ) as X509Certificate
+    }
+
+    /**
+     * Retrieves the Root CA RSA PrivateKey instance for signing dynamic leaf certificates.
+     */
+    fun getRootCaPrivateKey(): java.security.PrivateKey {
+        if (!keyFile.exists() || keyFile.length() == 0L) {
+            generateAndSaveRootCa()
+        }
+        val keyPem = keyFile.readText()
+        val cleanPem = keyPem
+            .replace("-----BEGIN PRIVATE KEY-----", "")
+            .replace("-----END PRIVATE KEY-----", "")
+            .replace("\r", "")
+            .replace("\n", "")
+            .trim()
+        val keyBytes = android.util.Base64.decode(cleanPem, android.util.Base64.DEFAULT)
+        val keySpec = java.security.spec.PKCS8EncodedKeySpec(keyBytes)
+        val keyFactory = java.security.KeyFactory.getInstance("RSA")
+        return keyFactory.generatePrivate(keySpec)
+    }
+
+    /**
      * Auto-generates a self-signed X.509 v3 Root CA Certificate.
      */
     private fun generateAndSaveRootCa(): String {
