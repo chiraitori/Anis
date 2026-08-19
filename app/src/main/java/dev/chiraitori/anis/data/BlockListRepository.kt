@@ -53,9 +53,36 @@ class BlockListRepository(private val context: Context) {
         loadSources()
         reloadActiveDomains()
 
-        // Asynchronously check and pull remote sources from GitHub if 7 days have passed
+        // Asynchronously check and pull down missing blocklist files from network
         CoroutineScope(Dispatchers.IO).launch {
+            ensureEnabledListsDownloaded()
             syncRemoteSourcesIfDue()
+        }
+    }
+
+    private suspend fun ensureEnabledListsDownloaded() = withContext(Dispatchers.IO) {
+        val enabledSources = _sourcesFlow.value.filter { it.isEnabled }
+        var hasNewDownloads = false
+
+        for (src in enabledSources) {
+            val file = File(blocklistDir, "${src.id}.txt")
+            if (!file.exists() || file.length() == 0L) {
+                Log.i("BlockListRepo", "Pulling down initial blocklist: ${src.name} (${src.url})")
+                val count = fetchAndSaveList(src)
+                if (count > 0) {
+                    hasNewDownloads = true
+                    val updated = _sourcesFlow.value.map {
+                        if (it.id == src.id) it.copy(ruleCount = count, lastUpdated = System.currentTimeMillis()) else it
+                    }
+                    _sourcesFlow.value = updated
+                    saveSources()
+                }
+            }
+        }
+
+        if (hasNewDownloads) {
+            reloadActiveDomains()
+            Log.i("BlockListRepo", "Initial blocklists pulled down. Active rules: ${activeDomainsSet.size}")
         }
     }
 
@@ -225,16 +252,13 @@ class BlockListRepository(private val context: Context) {
     fun reloadActiveDomains() {
         val newSet = mutableSetOf<String>()
 
-        // Always include default starter domains for immediate base protection
-        newSet.addAll(DefaultBlockLists.STARTER_DOMAINS)
-
         _sourcesFlow.value.filter { it.isEnabled }.forEach { src ->
             val file = File(blocklistDir, "${src.id}.txt")
-            if (file.exists()) {
+            if (file.exists() && file.length() > 0L) {
                 try {
                     file.forEachLine { line ->
                         val trimmed = line.trim().lowercase()
-                        if (trimmed.isNotEmpty()) {
+                        if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
                             newSet.add(trimmed)
                         }
                     }
