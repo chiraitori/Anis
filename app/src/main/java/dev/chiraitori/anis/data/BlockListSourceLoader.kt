@@ -5,7 +5,7 @@ import dev.chiraitori.anis.data.model.BlockListSource
 import dev.chiraitori.anis.data.model.RuleCategory
 import org.json.JSONObject
 
-object DefaultBlockLists {
+object BlockListSourceLoader {
 
     /**
      * Dynamically loads blocklist source catalog from the bundled assets/sources.json file.
