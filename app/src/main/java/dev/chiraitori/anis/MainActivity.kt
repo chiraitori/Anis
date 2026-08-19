@@ -13,6 +13,9 @@ import dev.chiraitori.anis.ui.theme.AnisTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val app = application as AnisApplication
+        val savedLang = app.settingsRepository.appLanguageFlow.value
+        dev.chiraitori.anis.ui.i18n.I18n.applyLocale(this, savedLang)
         enableEdgeToEdge()
         setContent {
             AnisTheme {

@@ -84,6 +84,26 @@ class SettingsRepository(private val context: Context) {
     private val _isPausedByTrustedFlow = MutableStateFlow(prefs.getBoolean(KEY_IS_PAUSED_BY_TRUSTED, false))
     val isPausedByTrustedFlow: StateFlow<Boolean> = _isPausedByTrustedFlow.asStateFlow()
 
+    private val _isCaInstalledFlow = MutableStateFlow(prefs.getBoolean(KEY_CA_INSTALLED, false))
+    val isCaInstalledFlow: StateFlow<Boolean> = _isCaInstalledFlow.asStateFlow()
+
+    private val _isCaDismissedFlow = MutableStateFlow(prefs.getBoolean(KEY_CA_DISMISSED, false))
+    val isCaDismissedFlow: StateFlow<Boolean> = _isCaDismissedFlow.asStateFlow()
+
+    var isCaInstalled: Boolean
+        get() = _isCaInstalledFlow.value
+        set(value) {
+            prefs.edit().putBoolean(KEY_CA_INSTALLED, value).apply()
+            _isCaInstalledFlow.value = value
+        }
+
+    var isCaDismissed: Boolean
+        get() = _isCaDismissedFlow.value
+        set(value) {
+            prefs.edit().putBoolean(KEY_CA_DISMISSED, value).apply()
+            _isCaDismissedFlow.value = value
+        }
+
     private fun loadStringSet(key: String): Set<String> {
         val json = prefs.getString(key, null) ?: return emptySet()
         return try {
@@ -589,6 +609,8 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_APP_LANGUAGE = "app_language"
         private const val KEY_LOG_RETENTION = "log_retention_period"
         private const val KEY_HAPTICS_ENABLED = "haptics_feedback_enabled"
+        private const val KEY_CA_INSTALLED = "ca_certificate_installed"
+        private const val KEY_CA_DISMISSED = "ca_banner_dismissed"
 
         @Volatile
         private var instance: SettingsRepository? = null

@@ -1,0 +1,128 @@
+{
+  "app_name": "Anis",
+  "app_subtitle": "システム全体 DNS 広告ブロッカー＆ファイアウォール",
+  "version": "0.1",
+  "author": "chiraitori",
+  "github_url": "https://github.com/chiraitori/Anis",
+
+  "nav": {
+    "shield": "保護",
+    "lists": "リスト",
+    "firewall": "ファイアウォール",
+    "logs": "ログ",
+    "settings": "設定"
+  },
+
+  "dashboard": {
+    "title": "Anis DNS Guard",
+    "status_active": "DNS保護が有効です",
+    "status_paused": "保護が一時停止中",
+    "status_paused_trusted": "信頼できるWi-Fiで一時停止中",
+    "tap_to_activate": "シールドをタップして保護を開始",
+    "tap_to_pause": "シールドをタップして保護を停止",
+    "total_queries": "総クエリ数",
+    "blocked_ads": "ブロックした広告",
+    "firewall_blocks": "ファイアウォール遮断",
+    "block_rate": "ブロック率",
+    "profiles_title": "保護プロファイル",
+    "breakdown_title": "保護の内訳",
+    "quick_actions": "クイック操作"
+  },
+
+  "blocklists": {
+    "title": "広告ブロックフィルターリスト",
+    "subtitle": "広告、トラッカー、悪意あるドメインをブロックするコミュニティリスト",
+    "add_custom": "カスタムリスト追加",
+    "update_all": "すべて更新",
+    "updating": "更新中...",
+    "active_rules": "有効なルール",
+    "sources_count": "有効なソース",
+    "preset_recommendation": "推奨プリセット"
+  },
+
+  "firewall": {
+    "title": "アプリファイアウォール",
+    "subtitle": "アプリごとのバックグラウンドデータ通信とインターネット接続を制限",
+    "filter_all": "すべて",
+    "filter_user": "ユーザーアプリ",
+    "filter_blocked": "ブロックのみ",
+    "filter_system": "システムアプリ",
+    "search_hint": "アプリを検索...",
+    "block_all": "すべてブロック",
+    "unblock_all": "すべてのブロックを解除",
+    "blocked_count": "ブロックされたアプリ"
+  },
+
+  "logs": {
+    "title": "リアルタイムクエリログ",
+    "subtitle": "リアルタイムDNSクエリインスペクターおよびブロック分析",
+    "search_hint": "ドメインやアプリを検索...",
+    "filter_all": "すべて",
+    "filter_blocked": "ブロックのみ",
+    "filter_allowed": "許可",
+    "clear_logs": "履歴を消去",
+    "latency": "レイテンシ",
+    "status_blocked_ad": "広告ブロック",
+    "status_blocked_firewall": "ファイアウォール遮断",
+    "status_allowed": "許可",
+    "status_safesearch": "セーフサーチ転送"
+  },
+
+  "settings": {
+    "title": "設定とエンジン",
+    "subtitle": "DNSルーティング、Rootプロキシ、フィル更新、プライバシーを調整",
+
+    "section_engine": "保護とDNSエンジン",
+    "section_engine_desc": "インターセプト方式、アップストリームDNS、セーフサーチを設定",
+    "interception_arch": "インターセプト方式",
+    "local_vpn": "ローカルVPN",
+    "root_iptables": "Root iptables",
+    "upstream_dns": "アップストリームDNS",
+    "dns_transport": "トランスポートプロトコル",
+    "doh_encrypted": "DoH (暗号化)",
+    "plain_udp": "通常UDP",
+    "response_type": "ブロック時のDNS応答",
+    "safesearch": "厳格なセーフサーチ",
+    "safesearch_desc": "Google、Bing、DuckDuckGo、Pixivでファミリーセーフを強制",
+    "youtube_restricted": "YouTube制限付きモード",
+    "youtube_restricted_desc": "YouTube全体で成人向け動画を制限",
+    "auto_reconnect": "自動再接続とローミング復帰",
+    "auto_reconnect_desc": "ネットワーク切り替え時にDNS保護を自動復旧",
+    "magisk_ca": "Magisk Root システムCAインストール",
+    "magisk_ca_desc": "全アプリのHTTPSインスペクション用に/data/adb/modulesへCAを配置",
+
+    "section_apps": "アプリとルーティング",
+    "section_apps_desc": "バイパスアプリと信頼できるWi-Fiネットワークを管理",
+    "bypassed_apps": "バイパスするアプリ",
+    "trusted_wifi": "信頼できるWi-Fi",
+
+    "section_filters": "フィルターとルール管理",
+    "section_filters_desc": "自動更新、ホワイトリスト、DNSリライトの設定",
+    "update_frequency": "更新頻度",
+    "wifi_only": "Wi-Fi接続時のみ更新",
+    "update_notifications": "更新通知",
+    "whitelist_domains": "ドメインホワイトリスト",
+    "blacklist_domains": "ドメインブラックリスト",
+    "dns_rewrites": "カスタムDNSリライト",
+
+    "section_appearance": "外観とシステム",
+    "section_appearance_desc": "カラーテーマ、触覚フィードバック、起動時動作",
+    "app_theme": "アプリのテーマ",
+    "app_language": "アプリの言語",
+    "haptics": "触覚フィードバック (Haptics)",
+    "start_on_boot": "端末起動時に自動開始",
+
+    "section_data": "データとバックアップ",
+    "section_data_desc": "設定のエクスポート/インポート、ログ保持期間、リセット",
+    "log_retention": "ログ保持期間",
+    "export_backup": "設定バックアップのエクスポート",
+    "import_backup": "設定の復元",
+    "clear_all_logs": "全ログと統計を消去",
+
+    "section_about": "情報とクレジット",
+    "section_about_desc": "開発者クレジット、オープンソースリポジトリ、診断",
+    "created_by": "開発者: chiraitori",
+    "root_status": "Root権限",
+    "engine_state": "エンジン状態"
+  }
+}

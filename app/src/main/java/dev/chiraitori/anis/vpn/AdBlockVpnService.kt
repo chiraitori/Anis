@@ -83,7 +83,7 @@ class AdBlockVpnService : VpnService() {
 
         try {
             val builder = Builder()
-                .setSession("Anis DNS Guard")
+                .setSession("Anis")
                 .setMtu(1500)
                 .addAddress("10.233.1.2", 32)
                 .addDnsServer("10.233.1.1")

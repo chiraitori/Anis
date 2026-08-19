@@ -1126,6 +1126,7 @@ fun SettingsScreen(
                                 .clip(ShapeCache.smooth16)
                                 .clickable {
                                     viewModel.setAppLanguage(lang)
+                                    dev.chiraitori.anis.ui.i18n.I18n.applyLocale(context, lang)
                                     Toast.makeText(context, "Language set to ${lang.displayName}", Toast.LENGTH_SHORT).show()
                                     showLanguageDialog = false
                                 }
@@ -1136,6 +1137,7 @@ fun SettingsScreen(
                                 selected = isSelected,
                                 onClick = {
                                     viewModel.setAppLanguage(lang)
+                                    dev.chiraitori.anis.ui.i18n.I18n.applyLocale(context, lang)
                                     Toast.makeText(context, "Language set to ${lang.displayName}", Toast.LENGTH_SHORT).show()
                                     showLanguageDialog = false
                                 }
@@ -1379,9 +1381,8 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         coroutineScope.launch {
-                            val certPem = viewModel.caManager.getOrCreateCaCertificatePem()
                             val success = withContext(Dispatchers.IO) {
-                                RootIptablesManager.installCaCertificateToSystem(certPem)
+                                viewModel.installSystemCaCert()
                             }
                             if (success) {
                                 Toast.makeText(context, "Magisk module installed! Please reboot your device.", Toast.LENGTH_LONG).show()

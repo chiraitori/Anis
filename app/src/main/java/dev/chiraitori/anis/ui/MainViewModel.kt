@@ -76,6 +76,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isOnboardingCompletedFlow = MutableStateFlow(settingsRepo.isOnboardingCompleted)
     val isOnboardingCompletedFlow = _isOnboardingCompletedFlow.asStateFlow()
 
+    val isCaInstalledFlow = settingsRepo.isCaInstalledFlow
+    val isCaDismissedFlow = settingsRepo.isCaDismissedFlow
+
     private val _safeSearchFlow = MutableStateFlow(settingsRepo.safeSearchEnabled)
     val safeSearchFlow = _safeSearchFlow.asStateFlow()
 
@@ -85,12 +88,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         loadFirewallApps()
         checkRootStatus()
+        checkIsCaInstalled()
+    }
+
+    fun checkIsCaInstalled(): Boolean {
+        if (settingsRepo.isCaInstalled) return true
+        if (caManager.isCaInstalledInTrustStore()) {
+            settingsRepo.isCaInstalled = true
+            return true
+        }
+        val magiskDir = java.io.File("/data/adb/modules/anis_root_ca")
+        if (magiskDir.exists()) {
+            settingsRepo.isCaInstalled = true
+            return true
+        }
+        return false
+    }
+
+    fun dismissCaWarning() {
+        settingsRepo.isCaDismissed = true
+    }
+
+    fun markCaInstalled() {
+        settingsRepo.isCaInstalled = true
     }
 
     fun checkRootStatus() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val rootAvailable = dev.chiraitori.anis.vpn.root.RootUtils.isRootAvailable()
-            _isRootAvailableFlow.value = rootAvailable
+            _isRootAvailableFlow.value = dev.chiraitori.anis.vpn.root.RootUtils.isRootAvailable()
         }
     }
 
@@ -101,7 +126,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun installSystemCaCert(): Boolean {
         val pem = caManager.getOrCreateCaCertificatePem()
-        return dev.chiraitori.anis.vpn.root.RootIptablesManager.installCaCertificateToSystem(pem)
+        val success = dev.chiraitori.anis.vpn.root.RootIptablesManager.installCaCertificateToSystem(pem)
+        if (success) {
+            settingsRepo.isCaInstalled = true
+        }
+        return success
     }
 
     fun completeOnboarding() {

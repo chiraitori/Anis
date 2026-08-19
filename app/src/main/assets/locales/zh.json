@@ -1,0 +1,128 @@
+{
+  "app_name": "Anis",
+  "app_subtitle": "全系统 DNS 广告拦截器与防火墙",
+  "version": "0.1",
+  "author": "chiraitori",
+  "github_url": "https://github.com/chiraitori/Anis",
+
+  "nav": {
+    "shield": "防护",
+    "lists": "规则",
+    "firewall": "防火墙",
+    "logs": "日志",
+    "settings": "设置"
+  },
+
+  "dashboard": {
+    "title": "Anis DNS Guard",
+    "status_active": "DNS 拦截防护已开启",
+    "status_paused": "防护已暂停",
+    "status_paused_trusted": "在信任的 Wi-Fi 下已暂停",
+    "tap_to_activate": "点击盾牌以激活 DNS 广告拦截",
+    "tap_to_pause": "点击盾牌以暂停防护",
+    "total_queries": "总查询数",
+    "blocked_ads": "已拦截广告",
+    "firewall_blocks": "防火墙拦截",
+    "block_rate": "拦截率",
+    "profiles_title": "防护预设",
+    "breakdown_title": "拦截分类",
+    "quick_actions": "快捷操作"
+  },
+
+  "blocklists": {
+    "title": "广告过滤规则列表",
+    "subtitle": "管理社区开源规则以拦截广告、追踪与恶意域名",
+    "add_custom": "添加自定义规则",
+    "update_all": "更新全部",
+    "updating": "正在更新规则...",
+    "active_rules": "活跃规则数",
+    "sources_count": "订阅源数量",
+    "preset_recommendation": "推荐规则集合"
+  },
+
+  "firewall": {
+    "title": "应用防火墙",
+    "subtitle": "在本地限制各个应用的网络访问与后台流量",
+    "filter_all": "全部",
+    "filter_user": "用户应用",
+    "filter_blocked": "仅已拦截",
+    "filter_system": "系统应用",
+    "search_hint": "搜索应用...",
+    "block_all": "拦截全部",
+    "unblock_all": "放行全部",
+    "blocked_count": "已拦截应用"
+  },
+
+  "logs": {
+    "title": "实时 DNS 日志",
+    "subtitle": "实时 DNS 请求分析与拦截追踪",
+    "search_hint": "搜索域名或应用...",
+    "filter_all": "全部",
+    "filter_blocked": "仅拦截",
+    "filter_allowed": "已放行",
+    "clear_logs": "清空查询历史",
+    "latency": "延迟",
+    "status_blocked_ad": "已拦截 (广告)",
+    "status_blocked_firewall": "已拦截 (防火墙)",
+    "status_allowed": "放行",
+    "status_safesearch": "安全搜索重定向"
+  },
+
+  "settings": {
+    "title": "设置与引擎",
+    "subtitle": "配置 DNS 路由、Root 代理、自动更新与隐私规则",
+
+    "section_engine": "防护与 DNS 引擎",
+    "section_engine_desc": "配置网络拦截机制、上游解析器与安全浏览",
+    "interception_arch": "流量拦截架构",
+    "local_vpn": "本地 VPN",
+    "root_iptables": "Root iptables",
+    "upstream_dns": "上游 DNS 解析器",
+    "dns_transport": "传输协议",
+    "doh_encrypted": "DoH (加密传输)",
+    "plain_udp": "普通 UDP",
+    "response_type": "拦截时 DNS 响应",
+    "safesearch": "强制安全搜索",
+    "safesearch_desc": "在 Google、Bing、DuckDuckGo 等搜索引擎中开启严格过滤",
+    "youtube_restricted": "YouTube 受限模式",
+    "youtube_restricted_desc": "在所有 YouTube 应用和浏览器中限制成人内容",
+    "auto_reconnect": "自动重连与网络漫游恢复",
+    "auto_reconnect_desc": "网络切换 (Wi-Fi ↔ 蜂窝数据) 时自动重新恢复 DNS 保护",
+    "magisk_ca": "安装 Magisk Root 系统 CA 证书",
+    "magisk_ca_desc": "将 Anis CA 写入 /data/adb/modules 以在所有应用中启用 HTTPS 深度过滤",
+
+    "section_apps": "应用与路由分流",
+    "section_apps_desc": "管理绕过 DNS 的应用与受信任的 Wi-Fi 网络",
+    "bypassed_apps": "白名单绕过应用",
+    "trusted_wifi": "受信任的 Wi-Fi",
+
+    "section_filters": "过滤规则管理",
+    "section_filters_desc": "配置规则更新频率、域名白名单与自定义 DNS 重定向",
+    "update_frequency": "规则自动更新周期",
+    "wifi_only": "仅在 Wi-Fi 下更新",
+    "update_notifications": "更新通知",
+    "whitelist_domains": "域名白名单 (始终放行)",
+    "blacklist_domains": "域名黑名单 (始终拦截)",
+    "dns_rewrites": "自定义 DNS 重定向与 Host 映射",
+
+    "section_appearance": "外观与系统",
+    "section_appearance_desc": "自定义色彩主题、触感反馈与开机自启",
+    "app_theme": "应用主题",
+    "app_language": "应用语言",
+    "haptics": "触觉反馈 (Haptics)",
+    "start_on_boot": "开机自动启动防护",
+
+    "section_data": "数据、备份与日志",
+    "section_data_desc": "导出/导入配置备份、设置日志保留期与重置统计",
+    "log_retention": "日志保留期限",
+    "export_backup": "导出配置备份 (JSON)",
+    "import_backup": "导入并恢复配置",
+    "clear_all_logs": "清空全部日志与统计",
+
+    "section_about": "关于与鸣谢",
+    "section_about_desc": "作者信息、开源代码仓库与引擎诊断",
+    "created_by": "由 chiraitori 开发",
+    "root_status": "Root 状态",
+    "engine_state": "引擎状态"
+  }
+}

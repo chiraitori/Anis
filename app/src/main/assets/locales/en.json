@@ -1,0 +1,128 @@
+{
+  "app_name": "Anis",
+  "app_subtitle": "System-Wide DNS Adblocker & Firewall",
+  "version": "0.1",
+  "author": "chiraitori",
+  "github_url": "https://github.com/chiraitori/Anis",
+
+  "nav": {
+    "shield": "Shield",
+    "lists": "Lists",
+    "firewall": "Firewall",
+    "logs": "Logs",
+    "settings": "Settings"
+  },
+
+  "dashboard": {
+    "title": "Anis DNS Guard",
+    "status_active": "DNS Protection Active",
+    "status_paused": "Protection Paused",
+    "status_paused_trusted": "Paused on Trusted Wi-Fi",
+    "tap_to_activate": "Tap shield to activate local DNS adblocker",
+    "tap_to_pause": "Tap shield to pause protection",
+    "total_queries": "Total Queries",
+    "blocked_ads": "Blocked Ads",
+    "firewall_blocks": "Firewall Blocks",
+    "block_rate": "Block Rate",
+    "profiles_title": "Protection Profiles",
+    "breakdown_title": "Protection Breakdown",
+    "quick_actions": "Quick Actions"
+  },
+
+  "blocklists": {
+    "title": "Adblock Filter Lists",
+    "subtitle": "Manage community lists to block ads, trackers, and malicious domains",
+    "add_custom": "Add Custom List",
+    "update_all": "Update All",
+    "updating": "Updating Lists...",
+    "active_rules": "Active Rules",
+    "sources_count": "Active Sources",
+    "preset_recommendation": "Recommended Presets"
+  },
+
+  "firewall": {
+    "title": "App Firewall",
+    "subtitle": "Restrict background data and internet access per app locally",
+    "filter_all": "All",
+    "filter_user": "User Apps",
+    "filter_blocked": "Blocked Only",
+    "filter_system": "System Apps",
+    "search_hint": "Search apps...",
+    "block_all": "Block All",
+    "unblock_all": "Unblock All",
+    "blocked_count": "Blocked Apps"
+  },
+
+  "logs": {
+    "title": "Live Query Logs",
+    "subtitle": "Real-time DNS query inspector and domain block metrics",
+    "search_hint": "Search domains or apps...",
+    "filter_all": "All",
+    "filter_blocked": "Blocked Only",
+    "filter_allowed": "Allowed",
+    "clear_logs": "Clear Query History",
+    "latency": "Latency",
+    "status_blocked_ad": "Blocked (Ad)",
+    "status_blocked_firewall": "Blocked (Firewall)",
+    "status_allowed": "Allowed",
+    "status_safesearch": "SafeSearch Redirect"
+  },
+
+  "settings": {
+    "title": "Settings & Engine",
+    "subtitle": "Fine-tune DNS routing, root proxy, filter schedules, and privacy rules",
+
+    "section_engine": "Protection & DNS Engine",
+    "section_engine_desc": "Configure packet interception, upstream resolvers, and safe browsing",
+    "interception_arch": "Interception Architecture",
+    "local_vpn": "Local VPN",
+    "root_iptables": "Root iptables",
+    "upstream_dns": "Upstream DNS Resolver",
+    "dns_transport": "Resolver Transport Protocol",
+    "doh_encrypted": "DoH (Encrypted)",
+    "plain_udp": "Plain UDP",
+    "response_type": "DNS Response on Block",
+    "safesearch": "Strict SafeSearch Enforcement",
+    "safesearch_desc": "Force family filtering on Google, Bing, DuckDuckGo, and Pixiv",
+    "youtube_restricted": "YouTube Restricted Mode",
+    "youtube_restricted_desc": "Restrict potentially mature videos across all YouTube apps and browsers",
+    "auto_reconnect": "Auto-Reconnect & Roaming Recovery",
+    "auto_reconnect_desc": "Automatically restore DNS protection on network handover (Wi-Fi ↔ Cellular)",
+    "magisk_ca": "Install Magisk Root System CA",
+    "magisk_ca_desc": "Write Anis CA to /data/adb/modules for HTTPS inspection across all apps",
+
+    "section_apps": "Applications & Routing",
+    "section_apps_desc": "Manage bypassed applications and trusted home/office Wi-Fi networks",
+    "bypassed_apps": "Bypassed Applications",
+    "trusted_wifi": "Trusted Wi-Fi SSIDs",
+
+    "section_filters": "Filters & Rule Management",
+    "section_filters_desc": "Configure automated blocklist updates, domain allowlists, and DNS rewrites",
+    "update_frequency": "Blocklist Update Frequency",
+    "wifi_only": "Update Over Wi-Fi Only",
+    "update_notifications": "Rule Update Notifications",
+    "whitelist_domains": "Domain Whitelist (Always Allow)",
+    "blacklist_domains": "Domain Blacklist (Always Block)",
+    "dns_rewrites": "Custom DNS Rewrites & Host Mappings",
+
+    "section_appearance": "Appearance & System",
+    "section_appearance_desc": "Customize color themes, tactile haptic response, and boot actions",
+    "app_theme": "Application Theme",
+    "app_language": "Application Language",
+    "haptics": "Expressive Haptic Feedback",
+    "start_on_boot": "Start Protection on Boot",
+
+    "section_data": "Data, Backup & Logs",
+    "section_data_desc": "Export/import settings configurations, manage log retention, and reset stats",
+    "log_retention": "Query Log Retention Period",
+    "export_backup": "Export Settings & Rules Backup",
+    "import_backup": "Import & Restore Configuration",
+    "clear_all_logs": "Clear All Logs & Analytics",
+
+    "section_about": "About & Credits",
+    "section_about_desc": "Author credits, open source repository, and engine diagnostics",
+    "created_by": "Created by chiraitori",
+    "root_status": "Root Status",
+    "engine_state": "Engine State"
+  }
+}

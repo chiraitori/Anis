@@ -1,0 +1,128 @@
+{
+  "app_name": "Anis",
+  "app_subtitle": "Pemblokir Iklan DNS & Firewall Seluruh Sistem",
+  "version": "0.1",
+  "author": "chiraitori",
+  "github_url": "https://github.com/chiraitori/Anis",
+
+  "nav": {
+    "shield": "Proteksi",
+    "lists": "Daftar",
+    "firewall": "Firewall",
+    "logs": "Log",
+    "settings": "Pengaturan"
+  },
+
+  "dashboard": {
+    "title": "Anis DNS Guard",
+    "status_active": "Perlindungan DNS Aktif",
+    "status_paused": "Perlindungan Dijeda",
+    "status_paused_trusted": "Dijeda di Wi-Fi Tepercaya",
+    "tap_to_activate": "Ketuk perisai untuk mengaktifkan adblocker",
+    "tap_to_pause": "Ketuk perisai untuk menjeda perlindungan",
+    "total_queries": "Total Permintaan",
+    "blocked_ads": "Iklan Diblokir",
+    "firewall_blocks": "Blokir Firewall",
+    "block_rate": "Tingkat Blokir",
+    "profiles_title": "Profil Perlindungan",
+    "breakdown_title": "Rincian Perlindungan",
+    "quick_actions": "Aksi Cepat"
+  },
+
+  "blocklists": {
+    "title": "Daftar Filter Pemblokir Iklan",
+    "subtitle": "Kelola daftar komunitas untuk memblokir iklan, pelacak, dan domain berbahaya",
+    "add_custom": "Tambah Daftar Kustom",
+    "update_all": "Perbarui Semua",
+    "updating": "Memperbarui Daftar...",
+    "active_rules": "Aturan Aktif",
+    "sources_count": "Sumber Aktif",
+    "preset_recommendation": "Preset Direkomendasikan"
+  },
+
+  "firewall": {
+    "title": "Firewall Aplikasi",
+    "subtitle": "Batasi data latar belakang dan akses internet per aplikasi secara lokal",
+    "filter_all": "Semua",
+    "filter_user": "Aplikasi Pengguna",
+    "filter_blocked": "Hanya Diblokir",
+    "filter_system": "Aplikasi Sistem",
+    "search_hint": "Cari aplikasi...",
+    "block_all": "Blokir Semua",
+    "unblock_all": "Buka Semua Blokir",
+    "blocked_count": "Aplikasi Diblokir"
+  },
+
+  "logs": {
+    "title": "Log Permintaan Langsung",
+    "subtitle": "Inspektur kueri DNS waktu nyata dan statistik pemblokiran domain",
+    "search_hint": "Cari domain atau aplikasi...",
+    "filter_all": "Semua",
+    "filter_blocked": "Hanya Diblokir",
+    "filter_allowed": "Diizinkan",
+    "clear_logs": "Hapus Riwayat Kueri",
+    "latency": "Latensi",
+    "status_blocked_ad": "Diblokir (Iklan)",
+    "status_blocked_firewall": "Diblokir (Firewall)",
+    "status_allowed": "Diizinkan",
+    "status_safesearch": "Pengalihan SafeSearch"
+  },
+
+  "settings": {
+    "title": "Pengaturan & Mesin",
+    "subtitle": "Atur perutean DNS, proksi root, jadwal pembaruan, dan privasi",
+
+    "section_engine": "Mesin Proteksi & DNS",
+    "section_engine_desc": "Konfigurasi intersepsi paket, resolver hulu, dan penjelajahan aman",
+    "interception_arch": "Arsitektur Intersepsi",
+    "local_vpn": "VPN Lokal",
+    "root_iptables": "Root iptables",
+    "upstream_dns": "Resolver DNS Hulu",
+    "dns_transport": "Protokol Transport Resolver",
+    "doh_encrypted": "DoH (Terenkripsi)",
+    "plain_udp": "UDP Biasa",
+    "response_type": "Respons DNS saat Diblokir",
+    "safesearch": "Penegakan SafeSearch Ketat",
+    "safesearch_desc": "Paksa filter keluarga di Google, Bing, DuckDuckGo, dan Pixiv",
+    "youtube_restricted": "Mode Terbatas YouTube",
+    "youtube_restricted_desc": "Batasi video dewasa di semua aplikasi YouTube dan browser",
+    "auto_reconnect": "Sambung Ulang Otomatis & Pemulihan Roaming",
+    "auto_reconnect_desc": "Pulihkan proteksi DNS secara otomatis saat berpindah jaringan (Wi-Fi ↔ Seluler)",
+    "magisk_ca": "Pasang CA Sistem Root Magisk",
+    "magisk_ca_desc": "Tulis CA Anis ke /data/adb/modules untuk inspeksi HTTPS seluruh aplikasi",
+
+    "section_apps": "Aplikasi & Perutean",
+    "section_apps_desc": "Kelola aplikasi yang dilewati dan jaringan Wi-Fi tepercaya",
+    "bypassed_apps": "Aplikasi yang Dilewati",
+    "trusted_wifi": "SSID Wi-Fi Tepercaya",
+
+    "section_filters": "Filter & Manajemen Aturan",
+    "section_filters_desc": "Konfigurasi pembaruan otomatis, daftar izin domain, dan penulisan ulang DNS",
+    "update_frequency": "Frekuensi Pembaruan Filter",
+    "wifi_only": "Perbarui Hanya Lewat Wi-Fi",
+    "update_notifications": "Notifikasi Pembaruan Aturan",
+    "whitelist_domains": "Daftar Putih Domain (Selalu Izinkan)",
+    "blacklist_domains": "Daftar Hitam Domain (Selalu Blokir)",
+    "dns_rewrites": "Pengalihan DNS Kustom & Pemetaan Host",
+
+    "section_appearance": "Tampilan & Sistem",
+    "section_appearance_desc": "Sesuaikan tema warna, umpan balik haptic, dan tindakan saat boot",
+    "app_theme": "Tema Aplikasi",
+    "app_language": "Bahasa Aplikasi",
+    "haptics": "Umpan Balik Haptik Ekspresif",
+    "start_on_boot": "Mulai Proteksi saat Boot",
+
+    "section_data": "Data, Cadangan & Log",
+    "section_data_desc": "Ekspor/impor konfigurasi pengaturan, retensi log, dan reset statistik",
+    "log_retention": "Periode Retensi Log Kueri",
+    "export_backup": "Ekspor Cadangan Pengaturan & Aturan",
+    "import_backup": "Impor & Pulihkan Konfigurasi",
+    "clear_all_logs": "Hapus Semua Log & Statistik",
+
+    "section_about": "Tentang & Kredit",
+    "section_about_desc": "Kredit pembuat, repositori sumber terbuka, dan diagnostik mesin",
+    "created_by": "Dibuat oleh chiraitori",
+    "root_status": "Status Root",
+    "engine_state": "Status Mesin"
+  }
+}

@@ -51,7 +51,7 @@ class AdBlockTileService : TileService() {
         qsTile?.let { tile ->
             val isRunning = VpnState.isRunningFlow.value
             tile.state = if (isRunning) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-            tile.label = "Anis DNS Guard"
+            tile.label = "Anis"
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 tile.subtitle = if (isRunning) "Protected" else "Paused"
             }
