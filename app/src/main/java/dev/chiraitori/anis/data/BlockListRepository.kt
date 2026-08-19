@@ -7,10 +7,12 @@ import dev.chiraitori.anis.data.model.BlockListSource
 import dev.chiraitori.anis.data.model.RuleCategory
 import dev.chiraitori.anis.data.model.RuleType
 import dev.chiraitori.anis.vpn.CustomRuleParser
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -50,6 +52,11 @@ class BlockListRepository(private val context: Context) {
     init {
         loadSources()
         reloadActiveDomains()
+
+        // Asynchronously check and pull remote sources from GitHub if 7 days have passed
+        CoroutineScope(Dispatchers.IO).launch {
+            syncRemoteSourcesIfDue()
+        }
     }
 
     private fun loadSources() {
@@ -112,6 +119,91 @@ class BlockListRepository(private val context: Context) {
             array.put(obj)
         }
         prefs.edit().putString(KEY_SOURCES, array.toString()).apply()
+    }
+
+    /**
+     * Pulls the latest sources.json from GitHub if 7 days have elapsed or if forced.
+     */
+    suspend fun syncRemoteSourcesIfDue(force: Boolean = false) = withContext(Dispatchers.IO) {
+        val lastSync = prefs.getLong(KEY_LAST_REMOTE_SYNC_TIME, 0L)
+        val now = System.currentTimeMillis()
+        if (!force && (now - lastSync) < SEVEN_DAYS_MS && _sourcesFlow.value.isNotEmpty()) {
+            return@withContext
+        }
+
+        try {
+            val request = Request.Builder()
+                .url(DEFAULT_REMOTE_SOURCES_URL)
+                .header("User-Agent", "Mozilla/5.0 AnisDNS/1.0")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext
+                val body = response.body?.string() ?: return@withContext
+                val root = JSONObject(body)
+                val sourcesArray = root.optJSONArray("sources") ?: return@withContext
+
+                val remoteSources = mutableListOf<BlockListSource>()
+                for (i in 0 until sourcesArray.length()) {
+                    val obj = sourcesArray.getJSONObject(i)
+                    val id = obj.getString("id")
+                    val cat = try {
+                        RuleCategory.valueOf(obj.optString("category", RuleCategory.ADS.name))
+                    } catch (e: Exception) {
+                        RuleCategory.ADS
+                    }
+
+                    remoteSources.add(
+                        BlockListSource(
+                            id = id,
+                            name = obj.getString("name"),
+                            description = obj.getString("description"),
+                            url = obj.getString("url"),
+                            isEnabled = obj.optBoolean("isEnabled", true),
+                            ruleCount = obj.optInt("ruleCount", 0),
+                            lastUpdated = now,
+                            category = cat,
+                            isCustom = false
+                        )
+                    )
+                }
+
+                if (remoteSources.isNotEmpty()) {
+                    val currentMap = _sourcesFlow.value.associateBy { it.id }.toMutableMap()
+                    val merged = mutableListOf<BlockListSource>()
+
+                    // Merge remote sources, preserving user's isEnabled preference
+                    remoteSources.forEach { remote ->
+                        val existing = currentMap[remote.id]
+                        if (existing != null) {
+                            merged.add(
+                                remote.copy(
+                                    isEnabled = existing.isEnabled,
+                                    ruleCount = if (existing.ruleCount > 0) existing.ruleCount else remote.ruleCount
+                                )
+                            )
+                            currentMap.remove(remote.id)
+                        } else {
+                            merged.add(remote)
+                        }
+                    }
+
+                    // Keep custom lists added by user
+                    currentMap.values.forEach { remaining ->
+                        if (remaining.isCustom) {
+                            merged.add(remaining)
+                        }
+                    }
+
+                    _sourcesFlow.value = merged
+                    saveSources()
+                    prefs.edit().putLong(KEY_LAST_REMOTE_SYNC_TIME, now).apply()
+                    Log.d("BlockListRepo", "Synced ${merged.size} sources from GitHub repository.")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("BlockListRepo", "Remote sources sync skipped: ${e.message}")
+        }
     }
 
     fun getActiveBlockedDomains(): Set<String> {
@@ -200,6 +292,9 @@ class BlockListRepository(private val context: Context) {
         if (_isUpdatingFlow.value) return@withContext
         _isUpdatingFlow.value = true
 
+        // Refresh remote list definitions from GitHub first
+        syncRemoteSourcesIfDue(force = true)
+
         val currentList = _sourcesFlow.value
         val updatedList = mutableListOf<BlockListSource>()
 
@@ -279,6 +374,10 @@ class BlockListRepository(private val context: Context) {
 
     companion object {
         private const val KEY_SOURCES = "saved_sources"
+        private const val KEY_LAST_REMOTE_SYNC_TIME = "last_remote_sources_sync_time"
+        private const val SEVEN_DAYS_MS = 7L * 24 * 60 * 60 * 1000L
+        const val DEFAULT_REMOTE_SOURCES_URL =
+            "https://raw.githubusercontent.com/chiraitori/Anis/main/sources.json"
 
         @Volatile
         private var instance: BlockListRepository? = null

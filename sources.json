@@ -1,0 +1,143 @@
+{
+  "name": "Anis Community Blocklists",
+  "version": "1.0.0",
+  "updated_at": "2026-08-19T21:35:00Z",
+  "sync_interval_days": 7,
+  "sources": [
+    {
+      "id": "adguard_base",
+      "name": "AdGuard DNS Filter",
+      "description": "Curated DNS filter composed of several filters optimized for mobile DNS ad blocking.",
+      "url": "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt",
+      "isEnabled": true,
+      "category": "ADS",
+      "ruleCount": 48000
+    },
+    {
+      "id": "hagezi_pro",
+      "name": "Hägezi Multi PRO",
+      "description": "High-accuracy multi-engine ad, tracking, and malware defense with zero false positives.",
+      "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/pro.txt",
+      "isEnabled": true,
+      "category": "ADS",
+      "ruleCount": 145000
+    },
+    {
+      "id": "oisd_big",
+      "name": "OISD Big",
+      "description": "Massive community-driven anti-tracking and advert blocking list.",
+      "url": "https://big.oisd.nl",
+      "isEnabled": true,
+      "category": "ADS",
+      "ruleCount": 120000
+    },
+    {
+      "id": "steven_black",
+      "name": "Steven Black Unified",
+      "description": "Consolidated hosts list blocking adware, malware, fake sites, and tracking.",
+      "url": "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+      "isEnabled": true,
+      "category": "ADS",
+      "ruleCount": 65000
+    },
+    {
+      "id": "easyprivacy",
+      "name": "EasyPrivacy",
+      "description": "Protection against web bugs, analytical trackers, and user monitoring scripts.",
+      "url": "https://easylist.to/easylist/easyprivacy.txt",
+      "isEnabled": true,
+      "category": "TRACKERS",
+      "ruleCount": 28000
+    },
+    {
+      "id": "urlhaus_malware",
+      "name": "URLhaus Malware Defense",
+      "description": "Community database of active malware distribution and ransomware hosts.",
+      "url": "https://urlhaus.abuse.ch/downloads/hostfile/",
+      "isEnabled": true,
+      "category": "MALWARE",
+      "ruleCount": 8500
+    },
+    {
+      "id": "phishing_army",
+      "name": "Phishing Army Extended",
+      "description": "Real-time threat intelligence protecting against credential phishing and fraud.",
+      "url": "https://phishing.army/download/phishing_army_blocklist_extended.txt",
+      "isEnabled": true,
+      "category": "MALWARE",
+      "ruleCount": 22000
+    },
+    {
+      "id": "oem_telemetry",
+      "name": "OEM & Device Telemetry",
+      "description": "Blocks background analytics and diagnostic reporting from device manufacturers.",
+      "url": "https://raw.githubusercontent.com/notracking/hosts-blocklists/master/hostnames.txt",
+      "isEnabled": true,
+      "category": "OEM_SPYWARE",
+      "ruleCount": 12000
+    },
+    {
+      "id": "easylist",
+      "name": "EasyList",
+      "description": "The primary filter list that removes advert banners and tracking scripts.",
+      "url": "https://easylist.to/easylist/easylist.txt",
+      "isEnabled": true,
+      "category": "ADS",
+      "ruleCount": 35000
+    },
+    {
+      "id": "fanboy_social",
+      "name": "Fanboy's Social Blocking",
+      "description": "Removes social media widgets, share buttons, and background trackers.",
+      "url": "https://easylist.to/easylist/fanboy-social.txt",
+      "isEnabled": false,
+      "category": "SOCIAL",
+      "ruleCount": 24000
+    },
+    {
+      "id": "one_hosts_lite",
+      "name": "1Hosts (Lite)",
+      "description": "Lightweight, highly effective mobile advertisement and tracker blocker.",
+      "url": "https://raw.githubusercontent.com/badmojr/1Hosts/master/Lite/hosts.txt",
+      "isEnabled": false,
+      "category": "ADS",
+      "ruleCount": 75000
+    },
+    {
+      "id": "abpvn",
+      "name": "ABPVN Regional Filter",
+      "description": "Specialized regional filter list blocking Vietnamese advertisements and popups.",
+      "url": "https://raw.githubusercontent.com/abpvn/abpvn/master/filter/abpvn.txt",
+      "isEnabled": false,
+      "category": "ADS",
+      "ruleCount": 4500
+    },
+    {
+      "id": "hostsvn",
+      "name": "HostsVN",
+      "description": "Vietnamese ad servers, malicious domains, and scam prevention hosts.",
+      "url": "https://raw.githubusercontent.com/bigdargon/hostsVN/master/hosts",
+      "isEnabled": false,
+      "category": "ADS",
+      "ruleCount": 18000
+    },
+    {
+      "id": "steven_black_porn",
+      "name": "Adult & NSFW Filter",
+      "description": "Filters adult content, explicit domains, and malicious redirect sites.",
+      "url": "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn-only/hosts",
+      "isEnabled": false,
+      "category": "MALWARE",
+      "ruleCount": 32000
+    },
+    {
+      "id": "steven_black_gambling",
+      "name": "Gambling & Betting Filter",
+      "description": "Blocks online casino, betting, and gambling platforms.",
+      "url": "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling-only/hosts",
+      "isEnabled": false,
+      "category": "MALWARE",
+      "ruleCount": 15000
+    }
+  ]
+}
