@@ -159,4 +159,39 @@ object DefaultBlockLists {
             category = RuleCategory.MALWARE
         )
     )
+
+    /**
+     * Dynamically loads default blocklist sources from the bundled assets/sources.json file.
+     */
+    fun loadFromAssets(context: android.content.Context): List<BlockListSource> {
+        return try {
+            val jsonStr = context.assets.open("sources.json").bufferedReader().use { it.readText() }
+            val root = org.json.JSONObject(jsonStr)
+            val array = root.getJSONArray("sources")
+            val list = mutableListOf<BlockListSource>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    BlockListSource(
+                        id = obj.getString("id"),
+                        name = obj.getString("name"),
+                        description = obj.getString("description"),
+                        url = obj.getString("url"),
+                        isEnabled = obj.optBoolean("isEnabled", false),
+                        ruleCount = obj.optInt("ruleCount", 0),
+                        lastUpdated = obj.optLong("lastUpdated", System.currentTimeMillis()),
+                        category = try {
+                            RuleCategory.valueOf(obj.optString("category", RuleCategory.ADS.name))
+                        } catch (e: Exception) {
+                            RuleCategory.ADS
+                        },
+                        isCustom = false
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            SOURCES
+        }
+    }
 }

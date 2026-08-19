@@ -120,7 +120,8 @@ class BlockListRepository(private val context: Context) {
 
         // Merge defaults if not present
         val existingIds = sources.map { it.id }.toSet()
-        DefaultBlockLists.SOURCES.forEach { defaultSrc ->
+        val defaultSources = DefaultBlockLists.loadFromAssets(context)
+        defaultSources.forEach { defaultSrc ->
             if (defaultSrc.id !in existingIds) {
                 sources.add(defaultSrc)
             }
