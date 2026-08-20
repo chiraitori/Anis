@@ -3,6 +3,25 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+tasks.register<Exec>("buildGoTunnel") {
+    val tunnelDir = rootProject.file("tunnel")
+    val outputAar = file("libs/tunnel.aar")
+
+    inputs.dir(tunnelDir)
+    outputs.files(outputAar, file("libs/tunnel-sources.jar"))
+    workingDir = tunnelDir
+    environment("GOFLAGS", "-buildvcs=false")
+    commandLine(
+        "gomobile", "bind",
+        "-target=android",
+        "-androidapi", "29",
+        "-trimpath",
+        "-ldflags=-s -w -buildid= -extldflags=-Wl,-z,max-page-size=16384",
+        "-o", outputAar.absolutePath,
+        "."
+    )
+}
+
 android {
     namespace = "dev.chiraitori.anis"
     compileSdk {
@@ -52,6 +71,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.bouncycastle.bcprov)
     implementation(libs.bouncycastle.bcpkix)
+    implementation(libs.androidx.core.splashscreen)
+
+    // GPL-3.0 Go/gVisor tunnel engine ported from BlockAds.
+    implementation(files("libs/tunnel.aar"))
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -33,6 +33,13 @@ class QueryLogRepository {
     private val blockedDomainCounts = ConcurrentHashMap<String, AtomicLong>()
     private val appTotalCounts = ConcurrentHashMap<String, AtomicLong>()
     private val appBlockedCounts = ConcurrentHashMap<String, AtomicLong>()
+    @Volatile
+    private var retentionDays: Int = 7
+
+    fun setRetentionDays(days: Int) {
+        retentionDays = days.coerceAtLeast(0)
+        if (retentionDays == 0) clearLogs() else pruneOldLogs(retentionDays)
+    }
 
     fun logQuery(
         domain: String,
@@ -40,28 +47,35 @@ class QueryLogRepository {
         status: QueryStatus,
         blockReason: String? = null,
         latencyMs: Long = 0L,
-        sourcePackage: String? = null
+        sourcePackage: String? = null,
+        saveToLogs: Boolean = true
     ) {
-        val entry = DnsQueryLog(
-            domain = domain,
-            queryType = queryType,
-            status = status,
-            blockReason = blockReason,
-            upstreamLatencyMs = latencyMs,
-            sourcePackage = sourcePackage
-        )
+        if (saveToLogs && retentionDays > 0) {
+            val entry = DnsQueryLog(
+                domain = domain,
+                queryType = queryType,
+                status = status,
+                blockReason = blockReason,
+                upstreamLatencyMs = latencyMs,
+                sourcePackage = sourcePackage
+            )
 
-        logDeque.addFirst(entry)
-        while (logDeque.size > maxLogs) {
-            logDeque.removeLast()
+            logDeque.addFirst(entry)
+            while (logDeque.size > maxLogs) {
+                logDeque.removeLast()
+            }
+            val cutoff = System.currentTimeMillis() - (retentionDays.toLong() * 24L * 60 * 60 * 1000L)
+            logDeque.removeIf { it.timestamp < cutoff }
+            _logsFlow.value = logDeque.toList()
         }
-        _logsFlow.value = logDeque.toList()
 
         // Update stats
         val currentStats = _statsFlow.value
         val isBlockedAd = status == QueryStatus.BLOCKED_AD
         val isBlockedFw = status == QueryStatus.BLOCKED_FIREWALL
         val isBlocked = isBlockedAd || isBlockedFw
+
+        val category = if (isBlocked) resolveDomainCategory(domain) else null
 
         if (isBlocked) {
             blockedDomainCounts.computeIfAbsent(domain) { AtomicLong(0) }.incrementAndGet()
@@ -79,7 +93,11 @@ class QueryLogRepository {
         _statsFlow.value = currentStats.copy(
             totalQueries = currentStats.totalQueries + 1,
             blockedQueries = if (isBlockedAd) currentStats.blockedQueries + 1 else currentStats.blockedQueries,
-            blockedFirewall = if (isBlockedFw) currentStats.blockedFirewall + 1 else currentStats.blockedFirewall
+            blockedFirewall = if (isBlockedFw) currentStats.blockedFirewall + 1 else currentStats.blockedFirewall,
+            adsCount = if (category == RuleCategory.ADS || isBlockedFw) currentStats.adsCount + 1 else currentStats.adsCount,
+            trackersCount = if (category == RuleCategory.TRACKERS || category == RuleCategory.SOCIAL) currentStats.trackersCount + 1 else currentStats.trackersCount,
+            malwareCount = if (category == RuleCategory.MALWARE) currentStats.malwareCount + 1 else currentStats.malwareCount,
+            telemetryCount = if (category == RuleCategory.OEM_SPYWARE) currentStats.telemetryCount + 1 else currentStats.telemetryCount
         )
     }
 
@@ -135,6 +153,13 @@ class QueryLogRepository {
     fun clearLogs() {
         logDeque.clear()
         _logsFlow.value = emptyList()
+    }
+
+    fun pruneOldLogs(retentionDays: Int) {
+        if (retentionDays <= 0) return
+        val cutoff = System.currentTimeMillis() - (retentionDays.toLong() * 24L * 60 * 60 * 1000L)
+        logDeque.removeIf { it.timestamp < cutoff }
+        _logsFlow.value = logDeque.toList()
     }
 
     fun resetStats() {

@@ -84,7 +84,7 @@ fun BlockListsScreen(
             ExtendedFloatingActionButton(
                 onClick = { showAddDialog = true },
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text("Add Custom List", fontWeight = FontWeight.Bold) },
+                text = { Text(dev.chiraitori.anis.ui.i18n.tr("add_custom_list", "Add Custom List"), fontWeight = FontWeight.Bold) },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = ShapeCache.smooth20,
@@ -104,7 +104,7 @@ fun BlockListsScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "Adblock Lists",
+                    text = dev.chiraitori.anis.ui.i18n.tr("blocklists_title", "Adblock Lists"),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onBackground,
@@ -113,7 +113,7 @@ fun BlockListsScreen(
                 )
 
                 Text(
-                    text = "Choose curated lists or enable all for maximum ad & malware blocking",
+                    text = dev.chiraitori.anis.ui.i18n.tr("blocklists_desc", "Choose curated lists or enable all for maximum ad & malware blocking"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -168,7 +168,7 @@ fun BlockListsScreen(
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Use All Adblock Lists",
+                                        text = dev.chiraitori.anis.ui.i18n.tr("use_all_lists", "Use All Adblock Lists"),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = if (allEnabled) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
@@ -176,7 +176,7 @@ fun BlockListsScreen(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = "$enabledCount of ${sources.size} lists active",
+                                        text = "$enabledCount / ${sources.size} ${dev.chiraitori.anis.ui.i18n.tr("lists_active_count", "lists active")}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = if (allEnabled) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
@@ -213,7 +213,7 @@ fun BlockListsScreen(
                             } else {
                                 Icon(Icons.Filled.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Update All Lists", fontWeight = FontWeight.Bold, maxLines = 1)
+                                Text(dev.chiraitori.anis.ui.i18n.tr("update_all_lists", "Update All Lists"), fontWeight = FontWeight.Bold, maxLines = 1)
                             }
                         }
 

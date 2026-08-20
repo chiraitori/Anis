@@ -7,6 +7,7 @@ import dev.chiraitori.anis.data.ProfileManager
 import dev.chiraitori.anis.data.QueryLogRepository
 import dev.chiraitori.anis.data.SettingsRepository
 import dev.chiraitori.anis.service.TrustedNetworkManager
+import dev.chiraitori.anis.service.BlockListUpdateScheduler
 import dev.chiraitori.anis.vpn.VpnController
 
 class AnisApplication : Application() {
@@ -35,10 +36,17 @@ class AnisApplication : Application() {
         profileManager = ProfileManager.getInstance(this, blockListRepository, settingsRepository)
         firewallRepository = FirewallRepository.getInstance(this)
         queryLogRepository = QueryLogRepository.instance
+        queryLogRepository.setRetentionDays(settingsRepository.logRetentionFlow.value.days)
         vpnController = VpnController.getInstance(this)
 
         trustedNetworkManager = TrustedNetworkManager(this, settingsRepository)
         trustedNetworkManager.start()
+
+        BlockListUpdateScheduler.schedule(
+            this,
+            settingsRepository.autoUpdateFrequencyFlow.value,
+            settingsRepository.autoUpdateWifiOnlyFlow.value
+        )
     }
 
     companion object {

@@ -27,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.chiraitori.anis.data.model.AdBlockStats
+import dev.chiraitori.anis.ui.i18n.tr
 import dev.chiraitori.anis.ui.theme.AmberWarning
 import dev.chiraitori.anis.ui.theme.CoralRed
 import dev.chiraitori.anis.ui.theme.EmeraldPrimary
@@ -36,10 +38,17 @@ import dev.chiraitori.anis.ui.theme.shapes.ShapeCache
 
 @Composable
 fun ThreatBreakdownCard(
-    adsBlockedCount: Long,
-    totalBlockedCount: Long,
+    stats: AdBlockStats,
     modifier: Modifier = Modifier
 ) {
+    val totalBlocked = stats.blockedQueries + stats.blockedFirewall
+    val total = if (totalBlocked > 0) totalBlocked.toFloat() else 1f
+
+    val adsPct = if (totalBlocked > 0) (stats.adsCount.toFloat() / total * 100f).toInt() else 0
+    val trackersPct = if (totalBlocked > 0) (stats.trackersCount.toFloat() / total * 100f).toInt() else 0
+    val malwarePct = if (totalBlocked > 0) (stats.malwareCount.toFloat() / total * 100f).toInt() else 0
+    val telemetryPct = if (totalBlocked > 0) (stats.telemetryCount.toFloat() / total * 100f).toInt() else 0
+
     ElevatedCard(
         modifier = modifier.fillMaxWidth(),
         shape = ShapeCache.smooth28,
@@ -59,7 +68,7 @@ fun ThreatBreakdownCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Protection Breakdown",
+                    text = tr("breakdown_title", "Protection Breakdown"),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -72,7 +81,7 @@ fun ThreatBreakdownCard(
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Text(
-                        text = "Real-time",
+                        text = tr("realtime", "Real-time"),
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -91,28 +100,33 @@ fun ThreatBreakdownCard(
                     .clip(ShapeCache.smoothPill)
                     .background(MaterialTheme.colorScheme.surfaceContainerHighest)
             ) {
-                if (totalBlockedCount > 0) {
+                if (totalBlocked > 0) {
+                    val wAds = (stats.adsCount.toFloat() / total).coerceAtLeast(0.05f)
+                    val wTrack = (stats.trackersCount.toFloat() / total).coerceAtLeast(0.05f)
+                    val wMal = (stats.malwareCount.toFloat() / total).coerceAtLeast(0.05f)
+                    val wTel = (stats.telemetryCount.toFloat() / total).coerceAtLeast(0.05f)
+
                     Box(
                         modifier = Modifier
-                            .weight(0.55f)
+                            .weight(wAds)
                             .fillMaxHeight()
                             .background(CoralRed)
                     )
                     Box(
                         modifier = Modifier
-                            .weight(0.25f)
+                            .weight(wTrack)
                             .fillMaxHeight()
                             .background(IndigoPrimary)
                     )
                     Box(
                         modifier = Modifier
-                            .weight(0.12f)
+                            .weight(wMal)
                             .fillMaxHeight()
                             .background(AmberWarning)
                     )
                     Box(
                         modifier = Modifier
-                            .weight(0.08f)
+                            .weight(wTel)
                             .fillMaxHeight()
                             .background(PurpleAccent)
                     )
@@ -128,15 +142,15 @@ fun ThreatBreakdownCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Legend Row
+            // Legend Row with 100% Real Dynamic Percentages
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                LegendItem(color = CoralRed, label = "Ads", percentage = if (totalBlockedCount > 0) "55%" else "0%")
-                LegendItem(color = IndigoPrimary, label = "Trackers", percentage = if (totalBlockedCount > 0) "25%" else "0%")
-                LegendItem(color = AmberWarning, label = "Malware", percentage = if (totalBlockedCount > 0) "12%" else "0%")
-                LegendItem(color = PurpleAccent, label = "Telemetry", percentage = if (totalBlockedCount > 0) "8%" else "0%")
+                LegendItem(color = CoralRed, label = tr("legend_ads", "Ads"), percentage = "$adsPct%")
+                LegendItem(color = IndigoPrimary, label = tr("legend_trackers", "Trackers"), percentage = "$trackersPct%")
+                LegendItem(color = AmberWarning, label = tr("legend_malware", "Malware"), percentage = "$malwarePct%")
+                LegendItem(color = PurpleAccent, label = tr("legend_telemetry", "Telemetry"), percentage = "$telemetryPct%")
             }
         }
     }

@@ -1,5 +1,6 @@
 package dev.chiraitori.anis.service
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Build
 import android.service.quicksettings.Tile
@@ -15,6 +16,7 @@ class AdBlockTileService : TileService() {
         updateTileState()
     }
 
+    @SuppressLint("StartActivityAndCollapseDeprecated")
     override fun onClick() {
         super.onClick()
         val isRunning = VpnState.isRunningFlow.value

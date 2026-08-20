@@ -8,6 +8,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -28,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.chiraitori.anis.ui.components.AppDestination
@@ -45,22 +52,27 @@ fun MainApp(
 ) {
     val context = LocalContext.current
     val isOnboardingCompleted by viewModel.isOnboardingCompletedFlow.collectAsState()
+    val currentLang by viewModel.appLanguage.collectAsState()
 
-    if (!isOnboardingCompleted) {
-        SetupScreen(
-            viewModel = viewModel,
-            onComplete = {
-                viewModel.completeOnboarding()
-            }
-        )
-        return
-    }
+    androidx.compose.runtime.CompositionLocalProvider(
+        dev.chiraitori.anis.ui.i18n.LocalAppLanguage provides currentLang
+    ) {
+        if (!isOnboardingCompleted) {
+            SetupScreen(
+                viewModel = viewModel,
+                onComplete = {
+                    viewModel.completeOnboarding()
+                }
+            )
+            return@CompositionLocalProvider
+        }
 
-    var currentDestination by remember { mutableStateOf(AppDestination.DASHBOARD) }
+        var currentDestination by remember { mutableStateOf(AppDestination.DASHBOARD) }
 
     val stats by viewModel.stats.collectAsState()
     val firewallApps by viewModel.firewallApps.collectAsState()
     val blockedAppsCount = firewallApps.count { it.isBlocked }
+    val hapticsEnabled by viewModel.hapticsEnabled.collectAsState()
 
     // VPN Consent Launcher
     val vpnConsentLauncher = rememberLauncherForActivityResult(
@@ -78,7 +90,24 @@ fun MainApp(
     ) {
         AnimatedContent(
             targetState = currentDestination,
-            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            transitionSpec = {
+                val forward = targetState.ordinal > initialState.ordinal
+                val direction = if (forward) 1 else -1
+                val spatialOffset = spring<IntOffset>(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+                val spatialScale = spring<Float>(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+                (fadeIn() +
+                    slideInHorizontally(animationSpec = spatialOffset) { direction * it / 5 } +
+                    scaleIn(initialScale = 0.97f, animationSpec = spatialScale)) togetherWith
+                    (fadeOut() +
+                        slideOutHorizontally(animationSpec = spatialOffset) { -direction * it / 7 } +
+                        scaleOut(targetScale = 0.985f, animationSpec = spatialScale))
+            },
             label = "screen_transition",
             modifier = Modifier.fillMaxSize()
         ) { destination ->
@@ -125,7 +154,9 @@ fun MainApp(
             currentDestination = currentDestination,
             onNavigate = { currentDestination = it },
             blockedQueriesCount = stats.blockedQueries,
-            blockedAppsCount = blockedAppsCount
+            blockedAppsCount = blockedAppsCount,
+            hapticsEnabled = hapticsEnabled
         )
     }
+}
 }

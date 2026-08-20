@@ -104,7 +104,11 @@ class DynamicCertificateGenerator(private val caManager: CertificateAuthorityMan
         certBuilder.addExtension(Extension.subjectAlternativeName, false, generalNames)
 
         // 3. Sign using Root CA Private Key
-        val signer = JcaContentSignerBuilder("SHA256withRSA").build(rootKey)
+        val signatureAlgorithm = when (rootKey.algorithm.uppercase()) {
+            "EC", "ECDSA" -> "SHA256withECDSA"
+            else -> "SHA256withRSA"
+        }
+        val signer = JcaContentSignerBuilder(signatureAlgorithm).build(rootKey)
         val holder = certBuilder.build(signer)
         val leafCert: X509Certificate = JcaX509CertificateConverter().getCertificate(holder)
 

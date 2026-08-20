@@ -56,6 +56,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val appLanguage = settingsRepo.appLanguageFlow
     val logRetention = settingsRepo.logRetentionFlow
     val hapticsEnabled = settingsRepo.hapticsEnabledFlow
+    val startOnBoot = settingsRepo.startOnBootFlow
 
     val whitelist = settingsRepo.whitelistFlow
     val blacklist = settingsRepo.blacklistFlow
@@ -98,17 +99,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun checkIsCaInstalled(): Boolean {
-        if (settingsRepo.isCaInstalled) return true
-        if (caManager.isCaInstalledInTrustStore()) {
-            settingsRepo.isCaInstalled = true
-            return true
-        }
+        val inTrustStore = caManager.isCaInstalledInTrustStore()
         val magiskDir = java.io.File("/data/adb/modules/anis_root_ca")
-        if (magiskDir.exists()) {
-            settingsRepo.isCaInstalled = true
-            return true
-        }
-        return false
+        val isInstalled = inTrustStore || magiskDir.exists()
+        settingsRepo.isCaInstalled = isInstalled
+        return isInstalled
     }
 
     fun dismissCaWarning() {
@@ -116,7 +111,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun markCaInstalled() {
-        settingsRepo.isCaInstalled = true
+        checkIsCaInstalled()
     }
 
     fun checkRootStatus() {
@@ -268,11 +263,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setSafeSearchEnabled(enabled: Boolean) {
         settingsRepo.safeSearchEnabled = enabled
         _safeSearchFlow.value = enabled
+        vpnController.restartVpn()
     }
 
     fun setYoutubeRestrictedMode(enabled: Boolean) {
         settingsRepo.youtubeRestrictedMode = enabled
         _youtubeRestrictedFlow.value = enabled
+        vpnController.restartVpn()
     }
 
     fun setPauseOnTrustedEnabled(enabled: Boolean) {
@@ -319,20 +316,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         settingsRepo.removeBlacklistDomain(domain)
     }
 
-    var startOnBoot: Boolean
-        get() = settingsRepo.startOnBoot
-        set(value) { settingsRepo.startOnBoot = value }
+    fun setStartOnBoot(enabled: Boolean) {
+        settingsRepo.startOnBoot = enabled
+    }
 
     fun setDnsResponseType(type: DnsResponseType) {
         settingsRepo.setDnsResponseType(type)
+        vpnController.restartVpn()
     }
 
     fun setAutoUpdateFrequency(frequency: AutoUpdateFrequency) {
         settingsRepo.setAutoUpdateFrequency(frequency)
+        dev.chiraitori.anis.service.BlockListUpdateScheduler.schedule(
+            getApplication(),
+            frequency,
+            settingsRepo.autoUpdateWifiOnlyFlow.value
+        )
     }
 
     fun setAutoUpdateWifiOnly(wifiOnly: Boolean) {
         settingsRepo.setAutoUpdateWifiOnly(wifiOnly)
+        dev.chiraitori.anis.service.BlockListUpdateScheduler.schedule(
+            getApplication(),
+            settingsRepo.autoUpdateFrequencyFlow.value,
+            wifiOnly
+        )
     }
 
     fun setAutoUpdateNotification(notify: Boolean) {
@@ -361,22 +369,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearAllLogs() {
         queryLogRepo.clearLogs()
+        queryLogRepo.resetStats()
     }
 
     fun resetAllStats() {
-        queryLogRepo.clearLogs()
+        queryLogRepo.resetStats()
     }
 
     fun exportBackup(): String {
-        return settingsRepo.exportBackupJson()
+        return org.json.JSONObject(settingsRepo.exportBackupJson())
+            .put("blockLists", blockListRepo.exportBackupJson())
+            .toString(2)
     }
 
     fun importBackup(jsonString: String): Boolean {
-        val success = settingsRepo.importBackupJson(jsonString)
+        val root = runCatching { org.json.JSONObject(jsonString) }.getOrNull() ?: return false
+        val settingsSuccess = settingsRepo.importBackupJson(jsonString)
+        val listsSuccess = root.optJSONArray("blockLists")?.let(blockListRepo::importBackupJson) ?: true
+        val success = settingsSuccess && listsSuccess
         if (success) {
             _safeSearchFlow.value = settingsRepo.safeSearchEnabled
             _youtubeRestrictedFlow.value = settingsRepo.youtubeRestrictedMode
+            dev.chiraitori.anis.service.BlockListUpdateScheduler.schedule(
+                getApplication(),
+                settingsRepo.autoUpdateFrequencyFlow.value,
+                settingsRepo.autoUpdateWifiOnlyFlow.value
+            )
             vpnController.restartVpn()
+            loadFirewallApps()
         }
         return success
     }

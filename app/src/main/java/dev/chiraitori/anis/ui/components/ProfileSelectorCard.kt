@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.chiraitori.anis.data.model.ProfileType
 import dev.chiraitori.anis.data.model.ProtectionProfile
+import dev.chiraitori.anis.ui.i18n.tr
 import dev.chiraitori.anis.ui.theme.expressiveBounceClick
 import dev.chiraitori.anis.ui.theme.shapes.ShapeCache
 
@@ -71,7 +72,7 @@ fun ProfileSelectorCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Protection Profiles",
+                        text = tr("profiles_title", "Protection Profiles"),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -79,7 +80,7 @@ fun ProfileSelectorCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "Active: ${activeProfile.name}",
+                        text = "${tr("active", "Active")}: ${tr(activeProfile.id, activeProfile.name)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold,
@@ -93,7 +94,7 @@ fun ProfileSelectorCard(
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Text(
-                        text = "${profiles.size} MODES",
+                        text = "${profiles.size} ${tr("modes", "MODES")}",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -182,7 +183,7 @@ private fun ProfileItemCard(
                 Box(
                     modifier = Modifier
                         .size(38.dp)
-                        .clip(ShapeCache.smooth12)
+                        .clip(if (isSelected) ShapeCache.star6 else ShapeCache.star4)
                         .background(
                             if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest
                         ),
@@ -200,7 +201,7 @@ private fun ProfileItemCard(
                     Box(
                         modifier = Modifier
                             .size(22.dp)
-                            .clip(CircleShape)
+                            .clip(ShapeCache.star4)
                             .background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center
                     ) {
@@ -217,7 +218,7 @@ private fun ProfileItemCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = profile.name,
+                text = tr(profile.id, profile.name),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = contentColor,
@@ -228,7 +229,7 @@ private fun ProfileItemCard(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = profile.description,
+                text = tr("${profile.id}_desc", profile.description),
                 style = MaterialTheme.typography.bodySmall,
                 color = contentColor.copy(alpha = 0.75f),
                 fontSize = 11.sp,

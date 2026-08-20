@@ -55,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,7 +74,6 @@ import dev.chiraitori.anis.ui.theme.EmeraldPrimary
 import dev.chiraitori.anis.ui.theme.shapes.ShapeCache
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 enum class LogFilter(val displayName: String) {
     ALL("All"),
@@ -88,6 +88,7 @@ fun QueryLogsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
     val logs by viewModel.queryLogs.collectAsState()
     val topBlocked by viewModel.topBlockedDomains.collectAsState()
     val topApps by viewModel.topApps.collectAsState()
@@ -127,7 +128,7 @@ fun QueryLogsScreen(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Query Logs & Stats",
+                        text = dev.chiraitori.anis.ui.i18n.tr("logs_title", "Query Logs & Stats"),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onBackground,
@@ -135,7 +136,7 @@ fun QueryLogsScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "Real-time DNS audit trail and threat intelligence",
+                        text = dev.chiraitori.anis.ui.i18n.tr("logs_desc", "Real-time DNS audit trail and threat intelligence"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -177,7 +178,7 @@ fun QueryLogsScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text("Total Logged", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        Text(dev.chiraitori.anis.ui.i18n.tr("total_logged", "Total Logged"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                     }
 
                     Box(modifier = Modifier.size(1.dp, 32.dp))
@@ -191,7 +192,7 @@ fun QueryLogsScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text("Blocked", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        Text(dev.chiraitori.anis.ui.i18n.tr("blocked", "Blocked"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                     }
 
                     Box(modifier = Modifier.size(1.dp, 32.dp))
@@ -205,7 +206,7 @@ fun QueryLogsScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text("Allowed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        Text(dev.chiraitori.anis.ui.i18n.tr("allowed", "Allowed"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                     }
                 }
             }
@@ -220,7 +221,7 @@ fun QueryLogsScreen(
                     shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
                 ) {
                     Text(
-                        text = "Live Stream (${logs.size})",
+                        text = "${dev.chiraitori.anis.ui.i18n.tr("live_stream", "Live Stream")} (${logs.size})",
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
                         maxLines = 1
@@ -233,7 +234,7 @@ fun QueryLogsScreen(
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                 ) {
                     Text(
-                        text = "Top Analytics",
+                        text = dev.chiraitori.anis.ui.i18n.tr("top_analytics", "Top Analytics"),
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
                         maxLines = 1
@@ -441,7 +442,7 @@ fun QueryLogsScreen(
                             }
                             Column {
                                 Text("Timestamp", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(SimpleDateFormat("MMM d, HH:mm:ss", Locale.getDefault()).format(Date(log.timestamp)), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                Text(SimpleDateFormat("MMM d, HH:mm:ss", locale).format(Date(log.timestamp)), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                             }
                             Column {
                                 Text("Latency", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

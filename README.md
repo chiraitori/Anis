@@ -1,10 +1,10 @@
 # Anis
 
-Anis is a local DNS sinkhole and per-app firewall for Android. It intercepts port 53 DNS queries on-device using Android's `VpnService` and resolves blocked domains to `0.0.0.0`, blocking ads, trackers, and telemetry without routing traffic through remote VPN servers.
+Anis is a local DNS sinkhole, HTTPS filter, and per-app firewall for Android. Its Go/gVisor userspace tunnel processes traffic on-device; upstream sockets bypass the VPN loop and allowed DNS queries can be forwarded over encrypted DNS-over-HTTPS.
 
 ## What it does
 
-- **Local DNS Sinkhole**: Intercepts DNS queries on `10.111.222.1:53` and drops blocked domains locally.
+- **Local DNS Sinkhole**: Intercepts IPv4 and IPv6 DNS through synthetic local endpoints and answers blocked domains locally.
 - **DNS-over-HTTPS (DoH)**: Forwards allowed queries over encrypted HTTPS to Cloudflare, Quad9, AdGuard, Google, Mullvad, or custom resolvers.
 - **App Firewall**: Block internet access for specific applications or bypass the VPN tunnel per app.
 - **Trusted Wi-Fi Detection**: Automatically pauses filtering on designated home or work SSIDs and resumes when disconnected.
@@ -17,23 +17,30 @@ Anis is a local DNS sinkhole and per-app firewall for Android. It intercepts por
 
 ```
 [ Installed Apps ]
-        │ (Port 53 UDP DNS Requests)
+        │ (DNS-only or full IPv4 capture for HTTPS filtering)
         ▼
-[ Local VpnService (10.111.222.1) ]
+[ Android VpnService TUN ]
         │
-        ├─► [ Trie / Host Engine ] ──► (Blocked Domain) ──► Returns 0.0.0.0
+        ▼
+[ Go + gVisor userspace stack ]
         │
-        ├─► [ Custom DNS Rewrites ] ──► Returns Rewrite IP (e.g. SafeSearch)
+        ├─► [ Host engine ] ─────────► (Blocked Domain) ──► Local block response
         │
-        └─► [ Upstream Resolver ] ────► DoH / UDP 53 ────► Upstream DNS Server
+        ├─► [ UID/app firewall ] ─────► Blocks DNS for selected applications
+        │
+        ├─► [ Custom/SafeSearch ] ────► Returns the configured rewrite IP
+        │
+        ├─► [ HTTPS MITM filter ] ────► Selected browsers; pinned domains bypass
+        │
+        └─► [ Protected resolver ] ───► DoH / UDP 53 ────► Upstream DNS server
 ```
 
 ### Core components
 
-- `AnisVpnService`: Creates the local TUN interface and processes raw IPv4 and IPv6 UDP packets on port 53.
-- `DnsPacketParser`: Decodes and serializes RFC 1035 wire-format DNS queries and responses.
+- `AdBlockVpnService`: Establishes the Android TUN and chooses DNS-only or full IPv4 routing.
+- `GoTunnelAdapter`: Connects Anis settings, firewall rules, logs, UID lookup, and CA state to the native engine.
+- `tunnel/`: Go DNS resolver, gVisor/tun2socks network stack, firewall callbacks, and HTTPS MITM implementation.
 - `CustomRuleParser`: Matches hosts format (`0.0.0.0 domain.com`), plain domain lists, and Adblock Plus syntax (`||domain.com^`).
-- `DohClient`: Sends DNS wire queries over HTTP/2 with connection pooling.
 - `AppIconCache`: In-memory LRU cache storing decoded application drawables from `PackageManager`.
 
 ## Building
@@ -42,6 +49,7 @@ Anis is a local DNS sinkhole and per-app firewall for Android. It intercepts por
 - Android Studio Ladybug (2024.2.1) or newer
 - Android SDK 35
 - JDK 17 or JDK 21
+- Go 1.23+ and `gomobile` only when rebuilding the bundled tunnel AAR
 
 ### Build commands
 
@@ -55,6 +63,9 @@ cd anis
 
 # Assemble debug APK
 ./gradlew assembleDebug
+
+# Optional: rebuild app/libs/tunnel.aar after changing tunnel/*.go
+./gradlew :app:buildGoTunnel
 
 # Output APK path:
 # app/build/outputs/apk/debug/app-debug.apk
@@ -85,9 +96,11 @@ Configurations export to standard JSON:
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "upstreamDnsId": "cloudflare",
   "dnsProtocol": "DOH",
+  "protectionMode": "LOCAL_VPN",
+  "dnsResponseType": "ZERO_IP",
   "safeSearchEnabled": true,
   "youtubeRestricted": false,
   "pauseOnTrusted": true,
@@ -101,6 +114,13 @@ Configurations export to standard JSON:
       "targetIp": "192.168.1.150",
       "isEnabled": true
     }
+  ],
+  "blockLists": [
+    {
+      "id": "adguard_dns",
+      "isEnabled": true,
+      "isCustom": false
+    }
   ]
 }
 ```
@@ -112,9 +132,11 @@ Configurations export to standard JSON:
 | `BIND_VPN_SERVICE` | Creates the local TUN interface for port 53 DNS packet capture. |
 | `ACCESS_NETWORK_STATE` | Detects network connectivity and Wi-Fi state changes. |
 | `ACCESS_WIFI_STATE` | Reads the active SSID for trusted network pausing. |
+| `ACCESS_FINE_LOCATION` | Allows Android to reveal the active Wi-Fi SSID after the user grants access. |
+| `POST_NOTIFICATIONS` | Shows VPN status and optional blocklist update notifications. |
 | `QUERY_ALL_PACKAGES` | Lists installed applications for the per-app firewall. |
 | `RECEIVE_BOOT_COMPLETED` | Starts protection on device reboot when enabled by the user. |
 
 ## License
 
-MIT
+GNU General Public License v3.0. The Go tunnel is derived from [BlockAds for Android](https://github.com/pass-with-high-score/blockads-android), also licensed under GPL-3.0. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

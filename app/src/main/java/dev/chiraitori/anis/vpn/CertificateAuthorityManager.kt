@@ -7,24 +7,17 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
-import org.bouncycastle.asn1.x500.X500Name
-import org.bouncycastle.asn1.x509.BasicConstraints
-import org.bouncycastle.asn1.x509.Extension
-import org.bouncycastle.asn1.x509.KeyUsage
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
-import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo
+import org.bouncycastle.openssl.PEMKeyPair
+import org.bouncycastle.openssl.PEMParser
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter
 import java.io.ByteArrayInputStream
 import java.io.File
-import java.io.FileOutputStream
-import java.math.BigInteger
-import java.security.KeyPair
-import java.security.KeyPairGenerator
+import java.io.StringReader
 import java.security.KeyStore
-import java.security.SecureRandom
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
-import java.util.Date
+import tunnel.Tunnel
 
 class CertificateAuthorityManager(private val context: Context) {
 
@@ -32,8 +25,9 @@ class CertificateAuthorityManager(private val context: Context) {
         if (!exists()) mkdirs()
     }
 
-    private val certFile = File(caDir, "anis_root_ca.crt")
-    private val keyFile = File(caDir, "anis_root_ca.key")
+    // These filenames intentionally match the Go tunnel's persistent CA store.
+    private val certFile = File(caDir, "ca.crt")
+    private val keyFile = File(caDir, "ca.key")
 
     /**
      * Retrieves or auto-generates the local Root CA certificate PEM string.
@@ -57,92 +51,29 @@ class CertificateAuthorityManager(private val context: Context) {
         ) as X509Certificate
     }
 
-    /**
-     * Retrieves the Root CA RSA PrivateKey instance for signing dynamic leaf certificates.
-     */
+    /** Retrieves the Go tunnel's ECDSA CA key for the legacy root proxy. */
     fun getRootCaPrivateKey(): java.security.PrivateKey {
         if (!keyFile.exists() || keyFile.length() == 0L) {
             generateAndSaveRootCa()
         }
-        val keyPem = keyFile.readText()
-        val cleanPem = keyPem
-            .replace("-----BEGIN PRIVATE KEY-----", "")
-            .replace("-----END PRIVATE KEY-----", "")
-            .replace("\r", "")
-            .replace("\n", "")
-            .trim()
-        val keyBytes = android.util.Base64.decode(cleanPem, android.util.Base64.DEFAULT)
-        val keySpec = java.security.spec.PKCS8EncodedKeySpec(keyBytes)
-        val keyFactory = java.security.KeyFactory.getInstance("RSA")
-        return keyFactory.generatePrivate(keySpec)
+        val parsed = PEMParser(StringReader(keyFile.readText())).use { it.readObject() }
+        val converter = JcaPEMKeyConverter()
+        return when (parsed) {
+            is PEMKeyPair -> converter.getKeyPair(parsed).private
+            is PrivateKeyInfo -> converter.getPrivateKey(parsed)
+            else -> error("Unsupported Anis CA private-key format")
+        }
     }
 
-    /**
-     * Auto-generates a self-signed X.509 v3 Root CA Certificate.
-     */
+    /** Generates the same persistent ECDSA CA used by the Go MITM engine. */
     private fun generateAndSaveRootCa(): String {
-        try {
-            // 1. Generate RSA 2048 KeyPair
-            val keyGen = KeyPairGenerator.getInstance("RSA")
-            keyGen.initialize(2048, SecureRandom())
-            val keyPair: KeyPair = keyGen.generateKeyPair()
-
-            // 2. Certificate validity: 10 years
-            val notBefore = Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000L) // Yesterday
-            val notAfter = Date(System.currentTimeMillis() + 10L * 365 * 24 * 60 * 60 * 1000L) // 10 years
-
-            val serialNumber = BigInteger(64, SecureRandom())
-            val issuerName = X500Name("CN=Anis HTTPS & AdBlock CA, O=Anis Guard, OU=Security Engine, C=US")
-
-            val certBuilder = JcaX509v3CertificateBuilder(
-                issuerName,
-                serialNumber,
-                notBefore,
-                notAfter,
-                issuerName, // Self-signed
-                keyPair.public
-            )
-
-            // Critical CA constraint: isCA = true
-            certBuilder.addExtension(
-                Extension.basicConstraints,
-                true,
-                BasicConstraints(true)
-            )
-
-            // Key Usage: certSign + cRLSign
-            certBuilder.addExtension(
-                Extension.keyUsage,
-                true,
-                KeyUsage(KeyUsage.keyCertSign or KeyUsage.cRLSign or KeyUsage.digitalSignature)
-            )
-
-            // 3. Sign certificate using SHA256withRSA
-            val signer = JcaContentSignerBuilder("SHA256withRSA").build(keyPair.private)
-            val holder = certBuilder.build(signer)
-            val cert: X509Certificate = JcaX509CertificateConverter().getCertificate(holder)
-
-            // 4. Encode to PEM format
-            val certPem = buildString {
-                append("-----BEGIN CERTIFICATE-----\n")
-                append(android.util.Base64.encodeToString(cert.encoded, android.util.Base64.DEFAULT))
-                append("-----END CERTIFICATE-----\n")
+        return try {
+            Tunnel.newCertManager(caDir.absolutePath).getCACertPEM().also {
+                Log.i("CAManager", "Generated the shared Go/Kotlin Root CA")
             }
-
-            val keyPem = buildString {
-                append("-----BEGIN PRIVATE KEY-----\n")
-                append(android.util.Base64.encodeToString(keyPair.private.encoded, android.util.Base64.DEFAULT))
-                append("-----END PRIVATE KEY-----\n")
-            }
-
-            certFile.writeText(certPem)
-            keyFile.writeText(keyPem)
-
-            Log.i("CAManager", "Successfully generated and saved Anis Root CA Certificate")
-            return certPem
-        } catch (e: Exception) {
-            Log.e("CAManager", "Failed to generate Root CA", e)
-            throw e
+        } catch (error: Exception) {
+            Log.e("CAManager", "Failed to generate Root CA", error)
+            throw error
         }
     }
 

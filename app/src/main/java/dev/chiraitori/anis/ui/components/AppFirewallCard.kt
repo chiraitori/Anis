@@ -87,7 +87,7 @@ fun AppFirewallCard(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
                                 .size(18.dp)
-                                .clip(CircleShape)
+                                .clip(ShapeCache.star4)
                                 .background(MaterialTheme.colorScheme.error),
                             contentAlignment = Alignment.Center
                         ) {
@@ -103,7 +103,7 @@ fun AppFirewallCard(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
                                 .size(18.dp)
-                                .clip(CircleShape)
+                                .clip(ShapeCache.star4)
                                 .background(MaterialTheme.colorScheme.tertiary),
                             contentAlignment = Alignment.Center
                         ) {

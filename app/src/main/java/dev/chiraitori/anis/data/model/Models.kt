@@ -138,7 +138,11 @@ data class AdBlockStats(
     val totalQueries: Long = 0L,
     val blockedQueries: Long = 0L,
     val blockedFirewall: Long = 0L,
-    val activeRulesCount: Int = 0
+    val activeRulesCount: Int = 0,
+    val adsCount: Long = 0L,
+    val trackersCount: Long = 0L,
+    val malwareCount: Long = 0L,
+    val telemetryCount: Long = 0L
 ) {
     val blockRate: Float
         get() = if (totalQueries > 0) (blockedQueries + blockedFirewall).toFloat() / totalQueries.toFloat() * 100f else 0f

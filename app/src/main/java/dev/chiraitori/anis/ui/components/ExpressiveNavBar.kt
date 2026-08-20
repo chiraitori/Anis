@@ -1,12 +1,17 @@
 package dev.chiraitori.anis.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -24,7 +29,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Dns
@@ -41,6 +45,7 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,8 +55,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -59,6 +62,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -67,153 +72,81 @@ import dev.chiraitori.anis.ui.theme.shapes.ShapeCache
 
 enum class AppDestination(
     val title: String,
+    val titleKey: String,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector
 ) {
-    DASHBOARD("Shield", Icons.Filled.Security, Icons.Outlined.Security),
-    BLOCKLISTS("Lists", Icons.Filled.Checklist, Icons.Outlined.Checklist),
-    FIREWALL("Firewall", Icons.Filled.LocalFireDepartment, Icons.Outlined.LocalFireDepartment),
-    LOGS("Logs", Icons.Filled.Dns, Icons.Outlined.Dns),
-    SETTINGS("Settings", Icons.Filled.Settings, Icons.Outlined.Settings)
+    DASHBOARD("Shield", "nav_shield", Icons.Filled.Security, Icons.Outlined.Security),
+    BLOCKLISTS("Lists", "nav_lists", Icons.Filled.Checklist, Icons.Outlined.Checklist),
+    FIREWALL("Firewall", "nav_firewall", Icons.Filled.LocalFireDepartment, Icons.Outlined.LocalFireDepartment),
+    LOGS("Logs", "nav_logs", Icons.Filled.Dns, Icons.Outlined.Dns),
+    SETTINGS("Settings", "nav_settings", Icons.Filled.Settings, Icons.Outlined.Settings)
 }
 
-/**
- * PixelPlayer-crafted Floating Pill Navigation Bar.
- * Directly adapted from PixelPlayer's PlayerInternalNavigationBar and CustomNavigationBarItem.
- */
+private val PixelPlayerBarHeight = 90.dp
+private val PixelPlayerIndicatorWidth = 64.dp
+private val PixelPlayerIndicatorHeight = 32.dp
+private val EaseInQuart = CubicBezierEasing(0.5f, 0f, 0.75f, 0f)
+
+/** Floating bottom navigation tuned to PixelPlayer's proportions and interaction model. */
 @Composable
 fun ExpressiveNavBar(
     currentDestination: AppDestination,
     onNavigate: (AppDestination) -> Unit,
     blockedQueriesCount: Long = 0L,
     blockedAppsCount: Int = 0,
+    hapticsEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val haptics = LocalHapticFeedback.current
-    val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val systemBottomInset = WindowInsets.navigationBars
+        .asPaddingValues()
+        .calculateBottomPadding()
+        .coerceIn(0.dp, 96.dp)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(
-                start = 16.dp,
-                end = 16.dp,
-                bottom = (navBarInset + 8.dp).coerceAtLeast(12.dp),
-                top = 2.dp
-            ),
-        contentAlignment = Alignment.Center
+            .padding(start = 14.dp, end = 14.dp, bottom = systemBottomInset),
+        contentAlignment = Alignment.BottomCenter
     ) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(80.dp)
-                .shadow(
-                    elevation = 12.dp,
-                    shape = RoundedCornerShape(36.dp),
-                    spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
-                    ambientColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-                )
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                    shape = RoundedCornerShape(36.dp)
-                ),
-            shape = RoundedCornerShape(36.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            tonalElevation = 6.dp
+                .height(PixelPlayerBarHeight),
+            shape = ShapeCache.extraLargeIncreased,
+            color = NavigationBarDefaults.containerColor,
+            tonalElevation = 3.dp,
+            shadowElevation = 3.dp
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 6.dp, vertical = 8.dp),
+                    .padding(horizontal = 10.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AppDestination.values().forEach { destination ->
-                    val isSelected = currentDestination == destination
-
-                    PixelPlayerNavBarItem(
-                        selected = isSelected,
+                AppDestination.entries.forEach { destination ->
+                    val selected = currentDestination == destination
+                    PixelPlayerNavigationItem(
+                        selected = selected,
                         onClick = {
-                            if (!isSelected) {
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            if (!selected) {
+                                if (hapticsEnabled) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
                                 onNavigate(destination)
                             }
                         },
                         icon = {
-                            when (destination) {
-                                AppDestination.LOGS -> {
-                                    if (blockedQueriesCount > 0) {
-                                        BadgedBox(
-                                            badge = {
-                                                Badge(
-                                                    containerColor = MaterialTheme.colorScheme.error,
-                                                    contentColor = MaterialTheme.colorScheme.onError,
-                                                    modifier = Modifier.padding(bottom = 2.dp)
-                                                ) {
-                                                    Text(
-                                                        text = if (blockedQueriesCount > 99) "99+" else "$blockedQueriesCount",
-                                                        fontSize = 9.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-                                            }
-                                        ) {
-                                            Icon(
-                                                imageVector = if (isSelected) destination.selectedIcon else destination.unselectedIcon,
-                                                contentDescription = destination.title,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                        }
-                                    } else {
-                                        Icon(
-                                            imageVector = if (isSelected) destination.selectedIcon else destination.unselectedIcon,
-                                            contentDescription = destination.title,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                }
-                                AppDestination.FIREWALL -> {
-                                    if (blockedAppsCount > 0) {
-                                        BadgedBox(
-                                            badge = {
-                                                Badge(
-                                                    containerColor = MaterialTheme.colorScheme.tertiary,
-                                                    contentColor = MaterialTheme.colorScheme.onTertiary,
-                                                    modifier = Modifier.padding(bottom = 2.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "$blockedAppsCount",
-                                                        fontSize = 9.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-                                            }
-                                        ) {
-                                            Icon(
-                                                imageVector = if (isSelected) destination.selectedIcon else destination.unselectedIcon,
-                                                contentDescription = destination.title,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                        }
-                                    } else {
-                                        Icon(
-                                            imageVector = if (isSelected) destination.selectedIcon else destination.unselectedIcon,
-                                            contentDescription = destination.title,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                }
-                                else -> {
-                                    Icon(
-                                        imageVector = if (isSelected) destination.selectedIcon else destination.unselectedIcon,
-                                        contentDescription = destination.title,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                            }
+                            DestinationIcon(
+                                destination = destination,
+                                selected = selected,
+                                blockedQueriesCount = blockedQueriesCount,
+                                blockedAppsCount = blockedAppsCount
+                            )
                         },
-                        label = destination.title
+                        label = dev.chiraitori.anis.ui.i18n.tr(destination.titleKey, destination.title)
                     )
                 }
             }
@@ -221,111 +154,144 @@ fun ExpressiveNavBar(
     }
 }
 
-/**
- * Navigation bar item matching PixelPlayer's CustomNavigationBarItem:
- * - Oval background indicator with spring animation
- * - Icon scale with Spring.DampingRatioMediumBouncy
- * - Label typography with animated color states
- */
 @Composable
-private fun RowScope.PixelPlayerNavBarItem(
+private fun DestinationIcon(
+    destination: AppDestination,
+    selected: Boolean,
+    blockedQueriesCount: Long,
+    blockedAppsCount: Int
+) {
+    val count = when (destination) {
+        AppDestination.LOGS -> blockedQueriesCount.coerceAtMost(99).toInt()
+        AppDestination.FIREWALL -> blockedAppsCount.coerceAtMost(99)
+        else -> 0
+    }
+    val badgeColor = if (destination == AppDestination.LOGS) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.tertiary
+    }
+
+    if (count > 0) {
+        BadgedBox(
+            badge = {
+                Badge(
+                    containerColor = badgeColor,
+                    contentColor = if (destination == AppDestination.LOGS) {
+                        MaterialTheme.colorScheme.onError
+                    } else {
+                        MaterialTheme.colorScheme.onTertiary
+                    }
+                ) {
+                    Text(
+                        text = if ((destination == AppDestination.LOGS && blockedQueriesCount > 99) ||
+                            (destination == AppDestination.FIREWALL && blockedAppsCount > 99)
+                        ) "99+" else count.toString(),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        ) {
+            DestinationIconGraphic(destination, selected)
+        }
+    } else {
+        DestinationIconGraphic(destination, selected)
+    }
+}
+
+@Composable
+private fun DestinationIconGraphic(destination: AppDestination, selected: Boolean) {
+    Icon(
+        imageVector = if (selected) destination.selectedIcon else destination.unselectedIcon,
+        contentDescription = null,
+        modifier = Modifier.size(24.dp)
+    )
+}
+
+@Composable
+private fun RowScope.PixelPlayerNavigationItem(
     selected: Boolean,
     onClick: () -> Unit,
     icon: @Composable () -> Unit,
     label: String,
     modifier: Modifier = Modifier,
-    selectedIconColor: Color = MaterialTheme.colorScheme.onSecondaryContainer,
-    unselectedIconColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    selectedTextColor: Color = MaterialTheme.colorScheme.primary,
-    unselectedTextColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    selectedColor: Color = MaterialTheme.colorScheme.primary,
+    unselectedColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     indicatorColor: Color = MaterialTheme.colorScheme.secondaryContainer
 ) {
     val iconColor by animateColorAsState(
-        targetValue = if (selected) selectedIconColor else unselectedIconColor,
-        animationSpec = tween(durationMillis = 150),
-        label = "iconColor"
+        targetValue = if (selected) selectedColor else unselectedColor,
+        animationSpec = tween(150),
+        label = "pixel_nav_icon_color"
     )
-
     val textColor by animateColorAsState(
-        targetValue = if (selected) selectedTextColor else unselectedTextColor,
-        animationSpec = tween(durationMillis = 150),
-        label = "textColor"
+        targetValue = if (selected) selectedColor else unselectedColor,
+        animationSpec = tween(150),
+        label = "pixel_nav_text_color"
     )
-
     val iconScale by animateFloatAsState(
-        targetValue = if (selected) 1.12f else 1.0f,
+        targetValue = if (selected) 1.1f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium
         ),
-        label = "iconScale"
+        label = "pixel_nav_icon_scale"
     )
-
-    val indicatorScale by animateFloatAsState(
-        targetValue = if (selected) 1f else 0.4f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "indicatorScale"
-    )
-
-    val indicatorAlpha by animateFloatAsState(
-        targetValue = if (selected) 1f else 0f,
-        animationSpec = tween(durationMillis = 120),
-        label = "indicatorAlpha"
-    )
-
     val interactionSource = remember { MutableInteractionSource() }
 
     Column(
         modifier = modifier
             .weight(1f)
             .fillMaxHeight()
-            .clip(RoundedCornerShape(20.dp))
             .clickable(
                 onClick = onClick,
                 role = Role.Tab,
                 interactionSource = interactionSource,
                 indication = null
             )
-            .semantics {
+            .semantics(mergeDescendants = true) {
                 this.contentDescription = label
+                this.selected = selected
+                this.role = Role.Tab
             },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Oval / Pill Indicator Box for active tab (as in PixelPlayer)
         Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.size(56.dp, 32.dp)
+            modifier = Modifier.size(PixelPlayerIndicatorWidth, PixelPlayerIndicatorHeight),
+            contentAlignment = Alignment.Center
         ) {
-            if (indicatorAlpha > 0.01f) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = selected,
+                enter = fadeIn(tween(100)) + scaleIn(
+                    initialScale = 0.72f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                ),
+                exit = fadeOut(tween(100)) + scaleOut(
+                    targetScale = 0.72f,
+                    animationSpec = tween(100, easing = EaseInQuart)
+                )
+            ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 2.dp)
-                        .graphicsLayer {
-                            scaleX = indicatorScale
-                            scaleY = indicatorScale
-                            alpha = indicatorAlpha
-                        }
-                        .background(
-                            color = indicatorColor,
-                            shape = RoundedCornerShape(16.dp)
-                        )
+                        .padding(horizontal = 4.dp)
+                        .background(indicatorColor, ShapeCache.pill)
                 )
             }
 
-            // Animated Icon Box
             Box(
-                contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(48.dp, 24.dp)
                     .graphicsLayer {
                         scaleX = iconScale
                         scaleY = iconScale
-                    }
+                    },
+                contentAlignment = Alignment.Center
             ) {
                 CompositionLocalProvider(LocalContentColor provides iconColor) {
                     icon()
@@ -333,20 +299,16 @@ private fun RowScope.PixelPlayerNavBarItem(
             }
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Animated text label
         ProvideTextStyle(
-            value = MaterialTheme.typography.labelSmall.copy(
+            MaterialTheme.typography.labelMedium.copy(
                 color = textColor,
-                fontSize = 12.sp,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                fontSize = 13.sp,
+                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
             )
         ) {
-            Text(
-                text = label,
-                maxLines = 1
-            )
+            Text(text = label, maxLines = 1)
         }
     }
 }

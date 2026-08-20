@@ -60,6 +60,9 @@ class SettingsRepository(private val context: Context) {
     private val _hapticsEnabledFlow = MutableStateFlow(prefs.getBoolean(KEY_HAPTICS_ENABLED, true))
     val hapticsEnabledFlow: StateFlow<Boolean> = _hapticsEnabledFlow.asStateFlow()
 
+    private val _startOnBootFlow = MutableStateFlow(prefs.getBoolean(KEY_START_ON_BOOT, false))
+    val startOnBootFlow: StateFlow<Boolean> = _startOnBootFlow.asStateFlow()
+
     private val _whitelistFlow = MutableStateFlow(loadStringSet(KEY_WHITELIST))
     val whitelistFlow: StateFlow<Set<String>> = _whitelistFlow.asStateFlow()
 
@@ -245,6 +248,7 @@ class SettingsRepository(private val context: Context) {
     fun setLogRetention(retention: LogRetention) {
         prefs.edit().putString(KEY_LOG_RETENTION, retention.name).apply()
         _logRetentionFlow.value = retention
+        QueryLogRepository.instance.setRetentionDays(retention.days)
     }
 
     fun setHapticsEnabled(enabled: Boolean) {
@@ -453,8 +457,11 @@ class SettingsRepository(private val context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_YOUTUBE_RESTRICTED, value).apply()
 
     var startOnBoot: Boolean
-        get() = prefs.getBoolean(KEY_START_ON_BOOT, false)
-        set(value) = prefs.edit().putBoolean(KEY_START_ON_BOOT, value).apply()
+        get() = _startOnBootFlow.value
+        set(value) {
+            prefs.edit().putBoolean(KEY_START_ON_BOOT, value).apply()
+            _startOnBootFlow.value = value
+        }
 
     var isOnboardingCompleted: Boolean
         get() = prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false)
@@ -463,14 +470,34 @@ class SettingsRepository(private val context: Context) {
     // Full JSON Export & Import (inspired by BlockAds SettingsBackup)
     fun exportBackupJson(): String {
         val root = JSONObject().apply {
-            put("version", 2)
+            put("version", 3)
             put("timestamp", System.currentTimeMillis())
             put("upstreamDnsId", _upstreamDnsFlow.value.id)
             put("dnsProtocol", _dnsProtocolFlow.value.name)
+            put("protectionMode", _protectionModeFlow.value.name)
+            put("dnsResponseType", _dnsResponseTypeFlow.value.name)
             put("safeSearchEnabled", safeSearchEnabled)
             put("youtubeRestricted", youtubeRestrictedMode)
             put("pauseOnTrusted", _pauseOnTrustedEnabledFlow.value)
             put("startOnBoot", startOnBoot)
+            put("httpsFilteringEnabled", httpsFilteringEnabled)
+            put("autoUpdateFrequency", _autoUpdateFrequencyFlow.value.name)
+            put("autoUpdateWifiOnly", _autoUpdateWifiOnlyFlow.value)
+            put("autoUpdateNotification", _autoUpdateNotificationFlow.value)
+            put("autoReconnect", _autoReconnectFlow.value)
+            put("themeMode", _themeModeFlow.value.name)
+            put("appLanguage", _appLanguageFlow.value.name)
+            put("logRetention", _logRetentionFlow.value.name)
+            put("hapticsEnabled", _hapticsEnabledFlow.value)
+
+            if (_upstreamDnsFlow.value.isCustom) {
+                put("customDns", JSONObject().apply {
+                    put("name", _upstreamDnsFlow.value.name)
+                    put("primaryIp", _upstreamDnsFlow.value.primaryIp)
+                    put("secondaryIp", _upstreamDnsFlow.value.secondaryIp)
+                    put("dohUrl", _upstreamDnsFlow.value.dohUrl ?: JSONObject.NULL)
+                })
+            }
 
             val wlArray = JSONArray()
             _whitelistFlow.value.forEach { wlArray.put(it) }
@@ -510,9 +537,31 @@ class SettingsRepository(private val context: Context) {
     fun importBackupJson(jsonString: String): Boolean {
         return try {
             val root = JSONObject(jsonString)
+            if (!root.has("version")) return false
             val dnsId = root.optString("upstreamDnsId", DefaultDnsProviders.CLOUDFLARE.id)
-            val provider = DefaultDnsProviders.ALL.firstOrNull { it.id == dnsId } ?: DefaultDnsProviders.CLOUDFLARE
-            setUpstreamDns(provider)
+            if (dnsId == "custom" && root.has("customDns")) {
+                val custom = root.getJSONObject("customDns")
+                setCustomUpstreamDns(
+                    name = custom.optString("name", "Custom DNS"),
+                    primaryIp = custom.getString("primaryIp"),
+                    secondaryIp = custom.optString("secondaryIp", ""),
+                    dohUrl = custom.optString("dohUrl").takeIf { it.isNotBlank() && it != "null" }
+                )
+            } else {
+                val provider = DefaultDnsProviders.ALL.firstOrNull { it.id == dnsId }
+                    ?: DefaultDnsProviders.CLOUDFLARE
+                setUpstreamDns(provider)
+            }
+
+            root.optString("dnsProtocol").takeIf { it.isNotBlank() }?.let {
+                setDnsProtocol(DnsProtocol.valueOf(it))
+            }
+            root.optString("protectionMode").takeIf { it.isNotBlank() }?.let {
+                setProtectionMode(ProtectionMode.valueOf(it))
+            }
+            root.optString("dnsResponseType").takeIf { it.isNotBlank() }?.let {
+                setDnsResponseType(DnsResponseType.valueOf(it))
+            }
 
             if (root.has("safeSearchEnabled")) {
                 safeSearchEnabled = root.getBoolean("safeSearchEnabled")
@@ -526,6 +575,25 @@ class SettingsRepository(private val context: Context) {
             if (root.has("pauseOnTrusted")) {
                 setPauseOnTrustedEnabled(root.getBoolean("pauseOnTrusted"))
             }
+            if (root.has("httpsFilteringEnabled")) {
+                httpsFilteringEnabled = root.getBoolean("httpsFilteringEnabled")
+            }
+            root.optString("autoUpdateFrequency").takeIf { it.isNotBlank() }?.let {
+                setAutoUpdateFrequency(AutoUpdateFrequency.valueOf(it))
+            }
+            if (root.has("autoUpdateWifiOnly")) setAutoUpdateWifiOnly(root.getBoolean("autoUpdateWifiOnly"))
+            if (root.has("autoUpdateNotification")) setAutoUpdateNotification(root.getBoolean("autoUpdateNotification"))
+            if (root.has("autoReconnect")) setAutoReconnect(root.getBoolean("autoReconnect"))
+            root.optString("themeMode").takeIf { it.isNotBlank() }?.let {
+                setThemeMode(ThemeMode.valueOf(it))
+            }
+            root.optString("appLanguage").takeIf { it.isNotBlank() }?.let {
+                setAppLanguage(AppLanguage.valueOf(it))
+            }
+            root.optString("logRetention").takeIf { it.isNotBlank() }?.let {
+                setLogRetention(LogRetention.valueOf(it))
+            }
+            if (root.has("hapticsEnabled")) setHapticsEnabled(root.getBoolean("hapticsEnabled"))
 
             if (root.has("whitelist")) {
                 val array = root.getJSONArray("whitelist")

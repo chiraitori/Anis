@@ -27,7 +27,7 @@ class FirewallRepository(
         val blockedSet = settingsRepository.firewallBlockedAppsFlow.value
 
         val apps = try {
-            val installedPackages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            val installedPackages = pm.getInstalledApplications(0)
             val selfPackage = context.packageName
 
             installedPackages

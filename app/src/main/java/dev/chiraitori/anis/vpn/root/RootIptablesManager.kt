@@ -11,6 +11,7 @@ object RootIptablesManager {
     private const val TAG = "RootIptablesManager"
     private const val NAT_CHAIN = "ANIS_DNS"
     private const val FILTER_CHAIN = "ANIS_DOT"
+    private const val FIREWALL_CHAIN = "ANIS_FIREWALL"
     const val DEFAULT_DNS_PORT = 5354
     const val DEFAULT_HTTPS_PORT = 8443
 
@@ -23,10 +24,11 @@ object RootIptablesManager {
         localPort: Int = DEFAULT_DNS_PORT,
         httpsPort: Int = DEFAULT_HTTPS_PORT,
         enableHttpsFiltering: Boolean = false,
-        whitelistedUids: Set<Int> = emptySet()
+        whitelistedUids: Set<Int> = emptySet(),
+        blockedUids: Set<Int> = emptySet()
     ): Boolean {
         val appUid = context.applicationInfo.uid
-        Log.i(TAG, "Setting up Root iptables redirection to port $localPort / https $httpsPort (appUid=$appUid, https=$enableHttpsFiltering)")
+        Log.i(TAG, "Setting up Root iptables redirection to port $localPort / https $httpsPort (appUid=$appUid, https=$enableHttpsFiltering, blockedUids=${blockedUids.size})")
 
         // Teardown first for idempotency
         teardownRules()
@@ -64,9 +66,18 @@ object RootIptablesManager {
         commands.add("iptables -t filter -A $FILTER_CHAIN -p tcp --dport 853 -j REJECT")
         commands.add("iptables -t filter -A OUTPUT -j $FILTER_CHAIN")
 
+        // 4. App Firewall: Strict kernel-level packet rejection for blocked apps
+        if (blockedUids.isNotEmpty()) {
+            commands.add("iptables -t filter -N $FIREWALL_CHAIN 2>/dev/null || true")
+            for (uid in blockedUids) {
+                commands.add("iptables -t filter -A $FIREWALL_CHAIN -m owner --uid-owner $uid -j REJECT")
+            }
+            commands.add("iptables -t filter -A OUTPUT -j $FIREWALL_CHAIN")
+        }
+
         val result = RootUtils.executeCommands(commands)
         if (result.isSuccess) {
-            Log.i(TAG, "Root iptables DNS redirect successfully configured")
+            Log.i(TAG, "Root iptables DNS redirect and firewall successfully configured")
         } else {
             Log.e(TAG, "Failed configuring iptables rules: ${result.stderr}")
         }
@@ -85,6 +96,9 @@ object RootIptablesManager {
             "iptables -t filter -D OUTPUT -j $FILTER_CHAIN 2>/dev/null || true",
             "iptables -t filter -F $FILTER_CHAIN 2>/dev/null || true",
             "iptables -t filter -X $FILTER_CHAIN 2>/dev/null || true",
+            "iptables -t filter -D OUTPUT -j $FIREWALL_CHAIN 2>/dev/null || true",
+            "iptables -t filter -F $FIREWALL_CHAIN 2>/dev/null || true",
+            "iptables -t filter -X $FIREWALL_CHAIN 2>/dev/null || true",
             "settings put global private_dns_mode opportunistic"
         )
 

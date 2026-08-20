@@ -6,18 +6,15 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
 
 object ExpressiveMotion {
     /**
@@ -44,12 +41,15 @@ object ExpressiveMotion {
  */
 fun Modifier.expressiveBounceClick(
     scaleDown: Float = 0.93f,
+    enabled: Boolean = true,
+    role: Role? = Role.Button,
     onClick: () -> Unit
 ): Modifier = composed {
-    var isPressed by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) scaleDown else 1f,
-        animationSpec = ExpressiveMotion.BouncySpring,
+        targetValue = if (isPressed && enabled) scaleDown else 1f,
+        animationSpec = if (isPressed) ExpressiveMotion.FastBouncySpring else ExpressiveMotion.BouncySpring,
         label = "expressive_bounce"
     )
 
@@ -59,18 +59,9 @@ fun Modifier.expressiveBounceClick(
             scaleY = scale
         }
         .clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
+            interactionSource = interactionSource,
+            enabled = enabled,
+            role = role,
             onClick = onClick
         )
-        .pointerInput(Unit) {
-            while (true) {
-                awaitPointerEventScope {
-                    awaitFirstDown(requireUnconsumed = false)
-                    isPressed = true
-                    waitForUpOrCancellation()
-                    isPressed = false
-                }
-            }
-        }
 }

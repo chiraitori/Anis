@@ -2,11 +2,8 @@ package dev.chiraitori.anis.ui.components
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -28,8 +25,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PauseCircle
@@ -47,7 +42,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -82,43 +76,11 @@ fun StatusShield(
         label = "spin_angle"
     )
 
-    // Breathing glow scale for active state
-    val breathingPulse by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = if (isActive) 1.08f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "breathing_pulse"
-    )
-
-    val breathingGlowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = if (isActive) 0.08f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "breathing_glow"
-    )
-
-    // Official Material 3 Expressive Corner Radius Morphing Animation
-    // Morphs smoothly from 32dp (Extra-Large M3 Squircle) to 70dp (CircleShape) during connection
-    val animatedCornerRadius by animateDpAsState(
-        targetValue = when {
-            isStarting -> 70.dp // Morphs to Circle during connecting
-            isActive -> 32.dp   // M3 Extra-Large Rounded Shape
-            else -> 32.dp       // M3 Extra-Large Resting Shape
-        },
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "corner_morph"
-    )
-
-    val heroShape = RoundedCornerShape(animatedCornerRadius)
+    val heroShape = when {
+        isStarting -> ShapeCache.heroLoading
+        isActive -> ShapeCache.heroActive
+        else -> ShapeCache.heroInactive
+    }
 
     val buttonScale by animateFloatAsState(
         targetValue = when {
@@ -131,6 +93,19 @@ fun StatusShield(
             stiffness = Spring.StiffnessMedium
         ),
         label = "button_scale"
+    )
+
+    val heroRotation by animateFloatAsState(
+        targetValue = when {
+            isStarting -> 18f
+            isActive -> 0f
+            else -> -8f
+        },
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "hero_rotation"
     )
 
     val shieldBgGradient = when {
@@ -168,27 +143,8 @@ fun StatusShield(
     ) {
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(200.dp)
+            modifier = Modifier.size(160.dp)
         ) {
-            // Soft unified ambient glow when active
-            if (isActive) {
-                Box(
-                    modifier = Modifier
-                        .size(165.dp)
-                        .scale(breathingPulse)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(
-                                    EmeraldPrimary.copy(alpha = breathingGlowAlpha * 1.5f),
-                                    EmeraldLight.copy(alpha = breathingGlowAlpha),
-                                    Color.Transparent
-                                )
-                            )
-                        )
-                )
-            }
-
             // Official Material 3 Expressive Morphing Hero Button
             Box(
                 contentAlignment = Alignment.Center,
@@ -197,6 +153,7 @@ fun StatusShield(
                     .graphicsLayer {
                         scaleX = buttonScale
                         scaleY = buttonScale
+                        rotationZ = heroRotation
                     }
                     .clip(heroShape)
                     .background(Brush.radialGradient(shieldBgGradient))
@@ -277,11 +234,15 @@ fun StatusShield(
             border = if (isActive) androidx.compose.foundation.BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.35f)) else null,
             modifier = Modifier.padding(horizontal = 16.dp)
         ) {
+            val startingStr = dev.chiraitori.anis.ui.i18n.tr("shield_starting", "STARTING PROTECTION...")
+            val activeStr = dev.chiraitori.anis.ui.i18n.tr("shield_active", "SYSTEM-WIDE PROTECTION ACTIVE")
+            val pausedStr = dev.chiraitori.anis.ui.i18n.tr("shield_paused", "PROTECTION PAUSED")
+
             AnimatedContent(
                 targetState = when {
-                    isStarting -> "STARTING PROTECTION..."
-                    isActive -> "SYSTEM-WIDE PROTECTION ACTIVE"
-                    else -> "PROTECTION PAUSED"
+                    isStarting -> startingStr
+                    isActive -> activeStr
+                    else -> pausedStr
                 },
                 transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(300)) },
                 label = "pill_text"
@@ -318,8 +279,11 @@ fun StatusShield(
 
         Spacer(modifier = Modifier.height(6.dp))
 
+        val protectingStr = dev.chiraitori.anis.ui.i18n.tr("rules_protecting", "active rules protecting device")
+        val tapToStartStr = dev.chiraitori.anis.ui.i18n.tr("tap_to_start", "Tap shield to activate local DNS adblocker")
+
         Text(
-            text = if (isActive) "$activeRulesCount active rules protecting device" else "Tap shield to activate local DNS adblocker",
+            text = if (isActive) "$activeRulesCount $protectingStr" else tapToStartStr,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

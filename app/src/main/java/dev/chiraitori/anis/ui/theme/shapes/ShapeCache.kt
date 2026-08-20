@@ -3,10 +3,16 @@ package dev.chiraitori.anis.ui.theme.shapes
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialShapes
+import androidx.compose.material3.toShape
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 
 /**
- * Global Shape Cache using 100% official Material 3 Shapes (RoundedCornerShape & CircleShape).
+ * App-wide Material 3 shape vocabulary. Containers use the M3 corner scale while icon and hero
+ * accents use the official Material expressive polygon library.
  */
 object ShapeCache {
     // Official Material 3 Expressive Primary Scale
@@ -37,7 +43,7 @@ object ShapeCache {
     // Material 3 Expressive Asymmetrical Corner Shape
     val asymmetricCard: CornerBasedShape = Material3ExpressiveShapes.asymmetric(28.dp, 10.dp, 28.dp, 10.dp)
 
-    // Legacy Aliases mapped directly to official M3 shapes:
+    // Stable container aliases.
     val smooth8 = corner8
     val smooth10 = corner10
     val smooth12 = corner12
@@ -53,13 +59,48 @@ object ShapeCache {
     val smooth36 = corner36
     val smoothPill = pill
 
-    val star4 = corner16
-    val star5 = corner18
-    val star6 = corner18
-    val star8 = corner24
-    val star12 = corner28
+    // Genuine Material 3 Expressive shapes. toShape() remembers the generated outline.
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    val star4: Shape
+        @Composable get() = MaterialShapes.Cookie4Sided.toShape(startAngle = -45)
 
-    val roundedHexagon = corner16
-    val polygonHexagon = corner16
-    val polygonOctagon = corner20
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    val star5: Shape
+        @Composable get() = MaterialShapes.Sunny.toShape(startAngle = -90)
+
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    val star6: Shape
+        @Composable get() = MaterialShapes.Cookie6Sided.toShape(startAngle = -90)
+
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    val star8: Shape
+        @Composable get() = MaterialShapes.Clover8Leaf.toShape(startAngle = -90)
+
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    val star12: Shape
+        @Composable get() = MaterialShapes.Cookie12Sided.toShape(startAngle = -90)
+
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    val roundedHexagon: Shape
+        @Composable get() = MaterialShapes.Cookie6Sided.toShape(startAngle = -90)
+
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    val polygonHexagon: Shape
+        @Composable get() = MaterialShapes.Gem.toShape(startAngle = -90)
+
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    val polygonOctagon: Shape
+        @Composable get() = MaterialShapes.PuffyDiamond.toShape(startAngle = -45)
+
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    val heroInactive: Shape
+        @Composable get() = MaterialShapes.SoftBurst.toShape(startAngle = -90)
+
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    val heroActive: Shape
+        @Composable get() = MaterialShapes.Cookie12Sided.toShape(startAngle = -90)
+
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    val heroLoading: Shape
+        @Composable get() = MaterialShapes.VerySunny.toShape(startAngle = -90)
 }

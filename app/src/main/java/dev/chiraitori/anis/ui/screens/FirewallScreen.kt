@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -101,7 +102,7 @@ fun FirewallScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "App Firewall",
+                text = dev.chiraitori.anis.ui.i18n.tr("firewall_title", "App Firewall"),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onBackground,
@@ -110,7 +111,7 @@ fun FirewallScreen(
             )
 
             Text(
-                text = "Restrict background data and internet access per app locally",
+                text = dev.chiraitori.anis.ui.i18n.tr("firewall_desc", "Restrict background data and internet access per app locally"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
@@ -147,7 +148,7 @@ fun FirewallScreen(
                             modifier = Modifier.weight(1f)
                         ) {
                             Surface(
-                                shape = ShapeCache.corner16,
+                                shape = if (blockedCount > 0) ShapeCache.star6 else ShapeCache.star4,
                                 color = if (blockedCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(46.dp)
                             ) {
@@ -165,7 +166,7 @@ fun FirewallScreen(
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "$blockedCount Apps Blocked",
+                                    text = "$blockedCount ${dev.chiraitori.anis.ui.i18n.tr("apps_blocked", "Apps Blocked")}",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface,
@@ -173,7 +174,7 @@ fun FirewallScreen(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = "${apps.size} total installed apps",
+                                    text = "${apps.size} ${dev.chiraitori.anis.ui.i18n.tr("total_installed", "total installed apps")}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
@@ -195,22 +196,28 @@ fun FirewallScreen(
                     ) {
                         FilledTonalButton(
                             onClick = { viewModel.blockAllFirewallApps(userAppsOnly = true) },
-                            shape = ShapeCache.corner14,
+                            shapes = ButtonDefaults.shapes(
+                                shape = ShapeCache.corner14,
+                                pressedShape = ShapeCache.star4
+                            ),
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Filled.Block, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Block User Apps", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text(dev.chiraitori.anis.ui.i18n.tr("block_user_apps", "Block User Apps"), fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
 
                         Button(
                             onClick = { viewModel.unblockAllFirewallApps() },
-                            shape = ShapeCache.corner14,
+                            shapes = ButtonDefaults.shapes(
+                                shape = ShapeCache.corner14,
+                                pressedShape = ShapeCache.star4
+                            ),
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Allow All", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text(dev.chiraitori.anis.ui.i18n.tr("allow_all", "Allow All"), fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
                     }
                 }
@@ -224,7 +231,7 @@ fun FirewallScreen(
                 onValueChange = { searchQuery = it },
                 placeholder = {
                     Text(
-                        text = "Search app or package name...",
+                        text = dev.chiraitori.anis.ui.i18n.tr("search_app_hint", "Search app or package name..."),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodyMedium

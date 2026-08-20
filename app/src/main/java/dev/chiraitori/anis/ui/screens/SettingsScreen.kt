@@ -1,11 +1,16 @@
 package dev.chiraitori.anis.ui.screens
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -89,6 +94,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -105,6 +111,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.chiraitori.anis.data.model.AppLanguage
 import dev.chiraitori.anis.data.model.AutoUpdateFrequency
 import dev.chiraitori.anis.data.model.CustomDnsRule
@@ -137,7 +147,16 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.checkIsCaInstalled()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Engine & Protection Flows
     val protectionMode by viewModel.protectionMode.collectAsState()
@@ -170,6 +189,7 @@ fun SettingsScreen(
     val appLanguage by viewModel.appLanguage.collectAsState()
     val logRetention by viewModel.logRetention.collectAsState()
     val hapticsEnabled by viewModel.hapticsEnabled.collectAsState()
+    val startOnBoot by viewModel.startOnBoot.collectAsState()
 
     // Dialog States
     var showDnsProviderDialog by remember { mutableStateOf(false) }
@@ -189,6 +209,26 @@ fun SettingsScreen(
     var showResetStatsConfirm by remember { mutableStateOf(false) }
     var showCaInstallConfirm by remember { mutableStateOf(false) }
 
+    val trustedWifiPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val granted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        if (granted) {
+            showTrustedWifiDialog = true
+        } else {
+            Toast.makeText(context, "Location permission is required to identify the current Wi-Fi network", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        viewModel.setAutoUpdateNotification(granted)
+        if (!granted) {
+            Toast.makeText(context, "Update notifications remain disabled", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -200,13 +240,13 @@ fun SettingsScreen(
         item {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Settings & Engine",
+                text = dev.chiraitori.anis.ui.i18n.tr("settings_title", "Settings & Engine"),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                text = "Fine-tune DNS routing, root proxy, filter schedules, and privacy rules",
+                text = dev.chiraitori.anis.ui.i18n.tr("settings_desc", "Fine-tune DNS routing, root proxy, filter schedules, and privacy rules"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -217,9 +257,9 @@ fun SettingsScreen(
         // ═══════════════════════════════════════════════════════════════════
         item {
             SettingsSectionHeader(
-                title = "Protection & DNS Engine",
+                title = dev.chiraitori.anis.ui.i18n.tr("sec_engine", "Protection & DNS Engine"),
                 icon = Icons.Filled.Shield,
-                description = "Configure packet interception, upstream resolvers, and safe browsing"
+                description = dev.chiraitori.anis.ui.i18n.tr("sec_engine_desc", "Configure packet interception, upstream resolvers, and safe browsing")
             )
         }
 
@@ -248,12 +288,12 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Interception Architecture",
+                                    text = dev.chiraitori.anis.ui.i18n.tr("interception_arch", "Interception Architecture"),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = if (protectionMode == ProtectionMode.ROOT_PROXY) "Zero-overhead iptables transparent proxy" else "Rootless local TUN VPN interface",
+                                    text = if (protectionMode == ProtectionMode.ROOT_PROXY) dev.chiraitori.anis.ui.i18n.tr("interception_root_desc", "Zero-overhead iptables transparent proxy") else dev.chiraitori.anis.ui.i18n.tr("interception_vpn_desc", "Rootless local TUN VPN interface"),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -271,7 +311,7 @@ fun SettingsScreen(
                             icon = {}
                         ) {
                             Text(
-                                text = "Local VPN",
+                                text = dev.chiraitori.anis.ui.i18n.tr("mode_local_vpn", "Local VPN"),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 maxLines = 1,
@@ -285,7 +325,7 @@ fun SettingsScreen(
                                 if (isRootAvailable) {
                                     viewModel.setProtectionMode(ProtectionMode.ROOT_PROXY)
                                 } else {
-                                    Toast.makeText(context, "Root access ('su') not detected on device", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, dev.chiraitori.anis.ui.i18n.I18n.get("root_not_detected", appLanguage, "Root access ('su') not detected on device"), Toast.LENGTH_SHORT).show()
                                 }
                             },
                             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
@@ -293,7 +333,7 @@ fun SettingsScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "Root iptables",
+                                    text = dev.chiraitori.anis.ui.i18n.tr("mode_root_iptables", "Root iptables"),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
                                     maxLines = 1,
@@ -316,10 +356,10 @@ fun SettingsScreen(
 
                 // Upstream DNS Provider
                 SettingsClickRow(
-                    title = "Upstream DNS Resolver",
+                    title = dev.chiraitori.anis.ui.i18n.tr("upstream_dns_resolver", "Upstream DNS Resolver"),
                     subtitle = "${upstreamDns.name} (${upstreamDns.primaryIp})",
                     icon = Icons.Filled.Dns,
-                    badge = if (upstreamDns.isEncrypted) "Encrypted" else null,
+                    badge = if (upstreamDns.isEncrypted) dev.chiraitori.anis.ui.i18n.tr("encrypted_badge", "Encrypted") else null,
                     onClick = { showDnsProviderDialog = true }
                 )
 
@@ -328,12 +368,12 @@ fun SettingsScreen(
                 // DNS Protocol (DoH vs Plain UDP)
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Resolver Transport Protocol",
+                        text = dev.chiraitori.anis.ui.i18n.tr("resolver_protocol", "Resolver Transport Protocol"),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (dnsProtocol == DnsProtocol.DOH) "Encrypted DNS-over-HTTPS (TLS port 443)" else "Standard Plain UDP Port 53",
+                        text = if (dnsProtocol == DnsProtocol.DOH) dev.chiraitori.anis.ui.i18n.tr("proto_doh_desc", "Encrypted DNS-over-HTTPS (TLS port 443)") else dev.chiraitori.anis.ui.i18n.tr("proto_udp_desc", "Standard Plain UDP Port 53"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -348,7 +388,7 @@ fun SettingsScreen(
                             icon = {}
                         ) {
                             Text(
-                                text = "DoH (Encrypted)",
+                                text = dev.chiraitori.anis.ui.i18n.tr("proto_doh", "DoH (Encrypted)"),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 maxLines = 1,
@@ -363,7 +403,7 @@ fun SettingsScreen(
                             icon = {}
                         ) {
                             Text(
-                                text = "Plain UDP",
+                                text = dev.chiraitori.anis.ui.i18n.tr("proto_udp", "Plain UDP"),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 maxLines = 1,
@@ -377,7 +417,7 @@ fun SettingsScreen(
 
                 // DNS Response Type
                 SettingsClickRow(
-                    title = "DNS Response on Block",
+                    title = dev.chiraitori.anis.ui.i18n.tr("dns_response_block", "DNS Response on Block"),
                     subtitle = "${dnsResponseType.title} — ${dnsResponseType.description}",
                     icon = Icons.Filled.Block,
                     onClick = { showResponseTypeDialog = true }
@@ -387,8 +427,8 @@ fun SettingsScreen(
 
                 // SafeSearch Enforcement
                 SettingsToggleRow(
-                    title = "Strict SafeSearch Enforcement",
-                    subtitle = "Force family filtering on Google, Bing, DuckDuckGo, and Pixiv",
+                    title = dev.chiraitori.anis.ui.i18n.tr("safesearch_title", "Strict SafeSearch Enforcement"),
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("safesearch_desc", "Force family filtering on Google and Bing"),
                     icon = Icons.Filled.Security,
                     checked = safeSearchEnabled,
                     onCheckedChange = { viewModel.setSafeSearchEnabled(it) }
@@ -398,8 +438,8 @@ fun SettingsScreen(
 
                 // YouTube Restricted Mode
                 SettingsToggleRow(
-                    title = "YouTube Restricted Mode",
-                    subtitle = "Restrict potentially mature videos across all YouTube apps and browsers",
+                    title = dev.chiraitori.anis.ui.i18n.tr("youtube_restricted_title", "YouTube Restricted Mode"),
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("youtube_restricted_desc", "Restrict potentially mature videos across all YouTube apps and browsers"),
                     icon = Icons.Filled.Shield,
                     checked = youtubeRestricted,
                     onCheckedChange = { viewModel.setYoutubeRestrictedMode(it) }
@@ -409,8 +449,8 @@ fun SettingsScreen(
 
                 // Auto-Reconnect
                 SettingsToggleRow(
-                    title = "Auto-Reconnect & Roaming Recovery",
-                    subtitle = "Automatically restore DNS protection on network handover (Wi-Fi ↔ Cellular)",
+                    title = dev.chiraitori.anis.ui.i18n.tr("autoreconnect_title", "Auto-Reconnect & Roaming Recovery"),
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("autoreconnect_desc", "Automatically restore DNS protection on network handover (Wi-Fi ↔ Cellular)"),
                     icon = Icons.Filled.NetworkCheck,
                     checked = autoReconnect,
                     onCheckedChange = { viewModel.setAutoReconnect(it) }
@@ -420,11 +460,11 @@ fun SettingsScreen(
 
                 // HTTPS Deep Filtering (MITM)
                 SettingsToggleRow(
-                    title = "HTTPS Deep Filtering (MITM)",
+                    title = dev.chiraitori.anis.ui.i18n.tr("https_deep_filtering", "HTTPS Deep Filtering (MITM)"),
                     subtitle = if (isCaInstalled) {
-                        "Decrypt and filter in-app HTTPS traffic, block URL-level ads, and strip tracking queries"
+                        dev.chiraitori.anis.ui.i18n.tr("https_installed_desc", "Decrypt and filter in-app HTTPS traffic, block URL-level ads, and strip tracking queries")
                     } else {
-                        "Requires Root CA certificate installation. Tap to set up CA certificate."
+                        dev.chiraitori.anis.ui.i18n.tr("https_uninstalled_desc", "Requires Root CA certificate installation. Tap to set up CA certificate.")
                     },
                     icon = Icons.Filled.Security,
                     checked = httpsFilteringEnabled && isCaInstalled,
@@ -442,10 +482,19 @@ fun SettingsScreen(
 
                     // Install Magisk System Certificate
                     SettingsClickRow(
-                        title = "Install Magisk Root System CA",
-                        subtitle = "Write Anis CA to /data/adb/modules for HTTPS inspection across all apps",
+                        title = dev.chiraitori.anis.ui.i18n.tr("install_magisk_ca_title", "Install Magisk Root System CA"),
+                        subtitle = dev.chiraitori.anis.ui.i18n.tr("install_magisk_ca_desc", "Write Anis CA to /data/adb/modules for HTTPS inspection across all apps"),
                         icon = Icons.Filled.VpnKey,
-                        badge = if (isCaInstalled) "Installed" else "Root",
+                        badge = if (isCaInstalled) dev.chiraitori.anis.ui.i18n.tr("badge_installed", "Installed") else dev.chiraitori.anis.ui.i18n.tr("badge_root", "Root"),
+                        onClick = { showCaInstallConfirm = true }
+                    )
+                } else {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    SettingsClickRow(
+                        title = "Install Rootless HTTPS CA",
+                        subtitle = "Save the CA certificate and open Android certificate settings",
+                        icon = Icons.Filled.VpnKey,
+                        badge = if (isCaInstalled) "Installed" else "Rootless",
                         onClick = { showCaInstallConfirm = true }
                     )
                 }
@@ -457,9 +506,9 @@ fun SettingsScreen(
         // ═══════════════════════════════════════════════════════════════════
         item {
             SettingsSectionHeader(
-                title = "Applications & Routing",
+                title = dev.chiraitori.anis.ui.i18n.tr("sec_apps", "Applications & Routing"),
                 icon = Icons.Filled.Apps,
-                description = "Manage bypassed applications and trusted home/office Wi-Fi networks"
+                description = dev.chiraitori.anis.ui.i18n.tr("sec_apps_desc", "Manage bypassed applications and trusted home/office Wi-Fi networks")
             )
         }
 
@@ -467,8 +516,8 @@ fun SettingsScreen(
             SettingsCard {
                 // Whitelisted Bypassed Apps
                 SettingsClickRow(
-                    title = "Bypassed Applications",
-                    subtitle = "${whitelistedApps.size} apps bypass DNS inspection entirely",
+                    title = dev.chiraitori.anis.ui.i18n.tr("bypassed_apps", "Bypassed Applications"),
+                    subtitle = "${whitelistedApps.size} ${dev.chiraitori.anis.ui.i18n.tr("bypassed_apps_desc", "apps bypass DNS inspection entirely")}",
                     icon = Icons.Filled.Apps,
                     badge = "${whitelistedApps.size}",
                     onClick = { showAppBypassDialog = true }
@@ -478,11 +527,22 @@ fun SettingsScreen(
 
                 // Trusted Wi-Fi Networks
                 SettingsClickRow(
-                    title = "Trusted Wi-Fi SSIDs",
-                    subtitle = if (pauseOnTrusted) "${trustedSsids.size} trusted networks (Auto-pause active)" else "Disabled (Protection active on all Wi-Fi)",
+                    title = dev.chiraitori.anis.ui.i18n.tr("trusted_wifi", "Trusted Wi-Fi SSIDs"),
+                    subtitle = if (pauseOnTrusted) "${trustedSsids.size} ${dev.chiraitori.anis.ui.i18n.tr("trusted_wifi_desc_active", "trusted networks (Auto-pause active)")}" else dev.chiraitori.anis.ui.i18n.tr("trusted_wifi_desc_disabled", "Disabled (Protection active on all Wi-Fi)"),
                     icon = Icons.Filled.Wifi,
-                    badge = if (pauseOnTrusted) "Active" else "Off",
-                    onClick = { showTrustedWifiDialog = true }
+                    badge = if (pauseOnTrusted) dev.chiraitori.anis.ui.i18n.tr("badge_active", "Active") else dev.chiraitori.anis.ui.i18n.tr("badge_off", "Off"),
+                    onClick = {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                            showTrustedWifiDialog = true
+                        } else {
+                            trustedWifiPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                                    Manifest.permission.ACCESS_FINE_LOCATION
+                                )
+                            )
+                        }
+                    }
                 )
             }
         }
@@ -492,9 +552,9 @@ fun SettingsScreen(
         // ═══════════════════════════════════════════════════════════════════
         item {
             SettingsSectionHeader(
-                title = "Filters & Rule Management",
+                title = dev.chiraitori.anis.ui.i18n.tr("sec_filters", "Filters & Rule Management"),
                 icon = Icons.Filled.FilterList,
-                description = "Configure automated blocklist updates, domain allowlists, and DNS rewrites"
+                description = dev.chiraitori.anis.ui.i18n.tr("sec_filters_desc", "Configure automated blocklist updates, domain allowlists, and DNS rewrites")
             )
         }
 
@@ -502,7 +562,7 @@ fun SettingsScreen(
             SettingsCard {
                 // Auto-Update Frequency
                 SettingsClickRow(
-                    title = "Blocklist Update Frequency",
+                    title = dev.chiraitori.anis.ui.i18n.tr("update_freq", "Blocklist Update Frequency"),
                     subtitle = autoUpdateFrequency.title,
                     icon = Icons.Outlined.Timer,
                     onClick = { showAutoUpdateDialog = true }
@@ -512,8 +572,8 @@ fun SettingsScreen(
 
                 // Wi-Fi Only Updates
                 SettingsToggleRow(
-                    title = "Update Over Wi-Fi Only",
-                    subtitle = "Prevent downloading blocklist rule updates on cellular metered connections",
+                    title = dev.chiraitori.anis.ui.i18n.tr("wifi_only", "Update Over Wi-Fi Only"),
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("wifi_only_desc", "Prevent downloading blocklist rule updates on cellular metered connections"),
                     icon = Icons.Filled.Wifi,
                     checked = autoUpdateWifiOnly,
                     onCheckedChange = { viewModel.setAutoUpdateWifiOnly(it) }
@@ -523,19 +583,27 @@ fun SettingsScreen(
 
                 // Update Notifications
                 SettingsToggleRow(
-                    title = "Rule Update Notifications",
-                    subtitle = "Show notification when new blocklist rules are compiled and loaded",
+                    title = dev.chiraitori.anis.ui.i18n.tr("update_notifications", "Rule Update Notifications"),
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("update_notif_desc", "Show notification when new blocklist rules are compiled and loaded"),
                     icon = Icons.Filled.Notifications,
                     checked = autoUpdateNotification,
-                    onCheckedChange = { viewModel.setAutoUpdateNotification(it) }
+                    onCheckedChange = { enabled ->
+                        if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            viewModel.setAutoUpdateNotification(enabled)
+                        }
+                    }
                 )
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
                 // Domain Whitelist
                 SettingsClickRow(
-                    title = "Domain Whitelist (Always Allow)",
-                    subtitle = "${whitelist.size} custom allowed domains",
+                    title = dev.chiraitori.anis.ui.i18n.tr("whitelist_domains", "Domain Whitelist (Always Allow)"),
+                    subtitle = "${whitelist.size} ${dev.chiraitori.anis.ui.i18n.tr("whitelist_domains_desc", "custom allowed domains")}",
                     icon = Icons.Filled.CheckCircle,
                     badge = "${whitelist.size}",
                     onClick = { showWhitelistDialog = true }
@@ -545,8 +613,8 @@ fun SettingsScreen(
 
                 // Domain Blacklist
                 SettingsClickRow(
-                    title = "Domain Blacklist (Always Block)",
-                    subtitle = "${blacklist.size} custom blocked domains",
+                    title = dev.chiraitori.anis.ui.i18n.tr("blacklist_domains", "Domain Blacklist (Always Block)"),
+                    subtitle = "${blacklist.size} ${dev.chiraitori.anis.ui.i18n.tr("blacklist_domains_desc", "custom blocked domains")}",
                     icon = Icons.Filled.Block,
                     badge = "${blacklist.size}",
                     onClick = { showBlacklistDialog = true }
@@ -556,8 +624,8 @@ fun SettingsScreen(
 
                 // Custom DNS Rewrites
                 SettingsClickRow(
-                    title = "Custom DNS Rewrites & Host Mappings",
-                    subtitle = "${customRules.size} custom IP redirects",
+                    title = dev.chiraitori.anis.ui.i18n.tr("dns_rewrites", "Custom DNS Rewrites & Host Mappings"),
+                    subtitle = "${customRules.size} ${dev.chiraitori.anis.ui.i18n.tr("dns_rewrites_desc", "custom IP redirects")}",
                     icon = Icons.Filled.Edit,
                     badge = "${customRules.size}",
                     onClick = { showCustomRulesDialog = true }
@@ -570,9 +638,9 @@ fun SettingsScreen(
         // ═══════════════════════════════════════════════════════════════════
         item {
             SettingsSectionHeader(
-                title = "Appearance & System",
+                title = dev.chiraitori.anis.ui.i18n.tr("sec_appearance", "Appearance & System"),
                 icon = Icons.Filled.Palette,
-                description = "Customize color themes, tactile haptic response, and boot actions"
+                description = dev.chiraitori.anis.ui.i18n.tr("sec_appearance_desc", "Customize color themes, tactile haptic response, and boot actions")
             )
         }
 
@@ -580,8 +648,13 @@ fun SettingsScreen(
             SettingsCard {
                 // Theme Mode
                 SettingsClickRow(
-                    title = "Application Theme",
-                    subtitle = themeMode.title,
+                    title = dev.chiraitori.anis.ui.i18n.tr("app_theme", "Application Theme"),
+                    subtitle = when (themeMode) {
+                        ThemeMode.SYSTEM -> dev.chiraitori.anis.ui.i18n.tr("theme_system", "System Default")
+                        ThemeMode.DARK -> dev.chiraitori.anis.ui.i18n.tr("theme_dark", "Dark Theme")
+                        ThemeMode.LIGHT -> dev.chiraitori.anis.ui.i18n.tr("theme_light", "Light Theme")
+                        ThemeMode.AMOLED -> dev.chiraitori.anis.ui.i18n.tr("theme_amoled", "AMOLED Black (Pitch Dark)")
+                    },
                     icon = Icons.Filled.Palette,
                     onClick = { showThemeDialog = true }
                 )
@@ -590,7 +663,7 @@ fun SettingsScreen(
 
                 // App Language
                 SettingsClickRow(
-                    title = "Application Language",
+                    title = dev.chiraitori.anis.ui.i18n.tr("app_language", "Application Language"),
                     subtitle = appLanguage.displayName,
                     icon = Icons.Filled.Language,
                     badge = if (appLanguage == AppLanguage.SYSTEM) "Auto" else appLanguage.languageCode.uppercase(),
@@ -601,8 +674,8 @@ fun SettingsScreen(
 
                 // Tactile Haptics
                 SettingsToggleRow(
-                    title = "Expressive Haptic Feedback",
-                    subtitle = "Vibrate gently on tab switches and toggle clicks (PixelPlayer style)",
+                    title = dev.chiraitori.anis.ui.i18n.tr("haptics_feedback", "Expressive Haptic Feedback"),
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("haptics_desc", "Vibrate gently on tab switches and toggle clicks (PixelPlayer style)"),
                     icon = Icons.Filled.Vibration,
                     checked = hapticsEnabled,
                     onCheckedChange = { viewModel.setHapticsEnabled(it) }
@@ -612,11 +685,11 @@ fun SettingsScreen(
 
                 // Start on Boot
                 SettingsToggleRow(
-                    title = "Start Protection on Boot",
-                    subtitle = "Automatically activate DNS adblocker when your phone turns on",
+                    title = dev.chiraitori.anis.ui.i18n.tr("start_on_boot", "Start Protection on Boot"),
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("start_on_boot_desc", "Automatically activate DNS adblocker when your phone turns on"),
                     icon = Icons.Filled.PowerSettingsNew,
-                    checked = viewModel.startOnBoot,
-                    onCheckedChange = { viewModel.startOnBoot = it }
+                    checked = startOnBoot,
+                    onCheckedChange = viewModel::setStartOnBoot
                 )
             }
         }
@@ -626,9 +699,9 @@ fun SettingsScreen(
         // ═══════════════════════════════════════════════════════════════════
         item {
             SettingsSectionHeader(
-                title = "Data, Backup & Logs",
+                title = dev.chiraitori.anis.ui.i18n.tr("sec_data", "Data, Backup & Logs"),
                 icon = Icons.Filled.Storage,
-                description = "Export/import settings configurations, manage log retention, and reset stats"
+                description = dev.chiraitori.anis.ui.i18n.tr("sec_data_desc", "Export/import settings configurations, manage log retention, and reset stats")
             )
         }
 
@@ -636,7 +709,7 @@ fun SettingsScreen(
             SettingsCard {
                 // Query Log Retention
                 SettingsClickRow(
-                    title = "Query Log Retention Period",
+                    title = dev.chiraitori.anis.ui.i18n.tr("log_retention", "Query Log Retention Period"),
                     subtitle = logRetention.title,
                     icon = Icons.Outlined.HourglassEmpty,
                     onClick = { showLogRetentionDialog = true }
@@ -646,8 +719,8 @@ fun SettingsScreen(
 
                 // Export Settings
                 SettingsClickRow(
-                    title = "Export Settings & Rules Backup",
-                    subtitle = "Generate and copy a portable JSON backup of your configuration",
+                    title = dev.chiraitori.anis.ui.i18n.tr("export_backup", "Export Settings & Rules Backup"),
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("export_backup_desc", "Generate and copy a portable JSON backup of your configuration"),
                     icon = Icons.Filled.Upload,
                     onClick = { showBackupDialog = true }
                 )
@@ -656,8 +729,8 @@ fun SettingsScreen(
 
                 // Import Settings
                 SettingsClickRow(
-                    title = "Import & Restore Configuration",
-                    subtitle = "Restore blocklists, custom rules, whitelist, and settings from JSON",
+                    title = dev.chiraitori.anis.ui.i18n.tr("import_backup", "Import & Restore Configuration"),
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("import_backup_desc", "Restore blocklists, custom rules, whitelist, and settings from JSON"),
                     icon = Icons.Filled.Download,
                     onClick = { showRestoreDialog = true }
                 )
@@ -666,8 +739,8 @@ fun SettingsScreen(
 
                 // Reset Analytics
                 SettingsClickRow(
-                    title = "Clear All Logs & Analytics",
-                    subtitle = "Permanently purge query history and reset blocked counter statistics",
+                    title = dev.chiraitori.anis.ui.i18n.tr("clear_logs", "Clear All Logs & Analytics"),
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("clear_logs_desc", "Permanently purge query history and reset blocked counter statistics"),
                     icon = Icons.Filled.Delete,
                     onClick = { showResetStatsConfirm = true }
                 )
@@ -679,9 +752,9 @@ fun SettingsScreen(
         // ═══════════════════════════════════════════════════════════════════
         item {
             SettingsSectionHeader(
-                title = "About & Credits",
+                title = dev.chiraitori.anis.ui.i18n.tr("sec_about", "About & Credits"),
                 icon = Icons.Filled.Info,
-                description = "Author credits, open source repository, and engine diagnostics"
+                description = dev.chiraitori.anis.ui.i18n.tr("sec_about_desc", "Author credits, open source repository, and engine diagnostics")
             )
         }
 
@@ -700,7 +773,7 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.ExtraBold
                             )
                             Text(
-                                text = "Version 0.1 (Material 3 Expressive)",
+                                text = dev.chiraitori.anis.ui.i18n.tr("version_label", "Version 0.1 (Material 3 Expressive)"),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -722,7 +795,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Next-generation DNS adblocker and kernel packet firewall for Android. Built with Material 3 Expressive UI, local VPN tunneling, and transparent root iptables routing.",
+                        text = dev.chiraitori.anis.ui.i18n.tr("app_tagline", "Next-generation DNS adblocker and kernel packet firewall for Android. Built with Material 3 Expressive UI, local VPN tunneling, and transparent root iptables routing."),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -765,7 +838,7 @@ fun SettingsScreen(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text(
-                                        text = "Created by chiraitori",
+                                        text = dev.chiraitori.anis.ui.i18n.tr("created_by", "Created by chiraitori"),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface
@@ -809,12 +882,12 @@ fun SettingsScreen(
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
                                 Text(
-                                    text = "Root Status",
+                                    text = dev.chiraitori.anis.ui.i18n.tr("root_status_label", "Root Status"),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    text = if (isRootAvailable) "Available (su)" else "Rootless Mode",
+                                    text = if (isRootAvailable) dev.chiraitori.anis.ui.i18n.tr("root_available", "Available (su)") else dev.chiraitori.anis.ui.i18n.tr("rootless_mode", "Rootless Mode"),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isRootAvailable) EmeraldPrimary else MaterialTheme.colorScheme.onSurface
@@ -829,12 +902,12 @@ fun SettingsScreen(
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
                                 Text(
-                                    text = "Engine State",
+                                    text = dev.chiraitori.anis.ui.i18n.tr("engine_state_label", "Engine State"),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    text = "Native Kotlin v0.1",
+                                    text = dev.chiraitori.anis.ui.i18n.tr("engine_version", "Go/gVisor tunnel engine"),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
@@ -857,7 +930,7 @@ fun SettingsScreen(
             onDismissRequest = { showDnsProviderDialog = false },
             title = {
                 Text(
-                    text = "Select Upstream DNS",
+                    text = dev.chiraitori.anis.ui.i18n.tr("select_upstream_dns", "Select Upstream DNS"),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -928,13 +1001,13 @@ fun SettingsScreen(
                     ) {
                         Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Configure Custom DNS Endpoint")
+                        Text(dev.chiraitori.anis.ui.i18n.tr("config_custom_dns", "Configure Custom DNS Endpoint"))
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showDnsProviderDialog = false }) {
-                    Text("Close")
+                    Text(dev.chiraitori.anis.ui.i18n.tr("close", "Close"))
                 }
             }
         )
@@ -950,14 +1023,14 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showCustomDnsDialog = false },
             title = {
-                Text("Custom DNS Server", fontWeight = FontWeight.Bold)
+                Text(dev.chiraitori.anis.ui.i18n.tr("custom_dns_server", "Custom DNS Server"), fontWeight = FontWeight.Bold)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = customName,
                         onValueChange = { customName = it },
-                        label = { Text("Server Name") },
+                        label = { Text(dev.chiraitori.anis.ui.i18n.tr("server_name", "Server Name")) },
                         singleLine = true,
                         shape = ShapeCache.smooth14,
                         modifier = Modifier.fillMaxWidth()
@@ -965,7 +1038,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = primaryIp,
                         onValueChange = { primaryIp = it },
-                        label = { Text("Primary IP (e.g. 1.1.1.1)") },
+                        label = { Text(dev.chiraitori.anis.ui.i18n.tr("primary_ip", "Primary IP (e.g. 1.1.1.1)")) },
                         singleLine = true,
                         shape = ShapeCache.smooth14,
                         modifier = Modifier.fillMaxWidth()
@@ -973,7 +1046,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = secondaryIp,
                         onValueChange = { secondaryIp = it },
-                        label = { Text("Secondary IP (Optional)") },
+                        label = { Text(dev.chiraitori.anis.ui.i18n.tr("secondary_ip", "Secondary IP (Optional)")) },
                         singleLine = true,
                         shape = ShapeCache.smooth14,
                         modifier = Modifier.fillMaxWidth()
@@ -981,7 +1054,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = dohUrl,
                         onValueChange = { dohUrl = it },
-                        label = { Text("DoH URL (e.g. https://cloudflare-dns.com/dns-query)") },
+                        label = { Text(dev.chiraitori.anis.ui.i18n.tr("doh_url", "DoH URL (e.g. https://cloudflare-dns.com/dns-query)")) },
                         singleLine = true,
                         shape = ShapeCache.smooth14,
                         modifier = Modifier.fillMaxWidth()
@@ -1003,12 +1076,12 @@ fun SettingsScreen(
                     },
                     shape = ShapeCache.smooth16
                 ) {
-                    Text("Save Resolver")
+                    Text(dev.chiraitori.anis.ui.i18n.tr("save_resolver", "Save Resolver"))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showCustomDnsDialog = false }) {
-                    Text("Cancel")
+                    Text(dev.chiraitori.anis.ui.i18n.tr("cancel", "Cancel"))
                 }
             }
         )
@@ -1018,7 +1091,7 @@ fun SettingsScreen(
     if (showResponseTypeDialog) {
         AlertDialog(
             onDismissRequest = { showResponseTypeDialog = false },
-            title = { Text("DNS Response on Block", fontWeight = FontWeight.Bold) },
+            title = { Text(dev.chiraitori.anis.ui.i18n.tr("dns_response_block", "DNS Response on Block"), fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     DnsResponseType.values().forEach { type ->
@@ -1051,7 +1124,7 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showResponseTypeDialog = false }) { Text("Close") }
+                TextButton(onClick = { showResponseTypeDialog = false }) { Text(dev.chiraitori.anis.ui.i18n.tr("close", "Close")) }
             }
         )
     }
@@ -1060,7 +1133,7 @@ fun SettingsScreen(
     if (showAutoUpdateDialog) {
         AlertDialog(
             onDismissRequest = { showAutoUpdateDialog = false },
-            title = { Text("Blocklist Update Schedule", fontWeight = FontWeight.Bold) },
+            title = { Text(dev.chiraitori.anis.ui.i18n.tr("update_freq", "Blocklist Update Schedule"), fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     AutoUpdateFrequency.values().forEach { freq ->
@@ -1090,7 +1163,7 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showAutoUpdateDialog = false }) { Text("Close") }
+                TextButton(onClick = { showAutoUpdateDialog = false }) { Text(dev.chiraitori.anis.ui.i18n.tr("close", "Close")) }
             }
         )
     }
@@ -1099,11 +1172,17 @@ fun SettingsScreen(
     if (showThemeDialog) {
         AlertDialog(
             onDismissRequest = { showThemeDialog = false },
-            title = { Text("Application Theme", fontWeight = FontWeight.Bold) },
+            title = { Text(dev.chiraitori.anis.ui.i18n.tr("app_theme", "Application Theme"), fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     ThemeMode.values().forEach { mode ->
                         val isSelected = themeMode == mode
+                        val modeLabel = when (mode) {
+                            ThemeMode.SYSTEM -> dev.chiraitori.anis.ui.i18n.tr("theme_system", "System Default")
+                            ThemeMode.DARK -> dev.chiraitori.anis.ui.i18n.tr("theme_dark", "Dark Theme")
+                            ThemeMode.LIGHT -> dev.chiraitori.anis.ui.i18n.tr("theme_light", "Light Theme")
+                            ThemeMode.AMOLED -> dev.chiraitori.anis.ui.i18n.tr("theme_amoled", "AMOLED Black (Pitch Dark)")
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1123,13 +1202,13 @@ fun SettingsScreen(
                                 }
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(mode.title, fontWeight = FontWeight.Medium)
+                            Text(modeLabel, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showThemeDialog = false }) { Text("Close") }
+                TextButton(onClick = { showThemeDialog = false }) { Text(dev.chiraitori.anis.ui.i18n.tr("close", "Close")) }
             }
         )
     }
@@ -1138,10 +1217,10 @@ fun SettingsScreen(
     if (showLanguageDialog) {
         AlertDialog(
             onDismissRequest = { showLanguageDialog = false },
-            title = { Text("Select App Language", fontWeight = FontWeight.Bold) },
+            title = { Text(dev.chiraitori.anis.ui.i18n.tr("select_app_language", "Select App Language"), fontWeight = FontWeight.Bold) },
             text = {
                 LazyColumn(modifier = Modifier.height(280.dp)) {
-                    items(AppLanguage.values().toList()) { lang ->
+                    items(listOf(AppLanguage.SYSTEM, AppLanguage.ENGLISH, AppLanguage.VIETNAMESE)) { lang ->
                         val isSelected = appLanguage == lang
                         Row(
                             modifier = Modifier
@@ -1150,7 +1229,7 @@ fun SettingsScreen(
                                 .clickable {
                                     viewModel.setAppLanguage(lang)
                                     dev.chiraitori.anis.ui.i18n.I18n.applyLocale(context, lang)
-                                    Toast.makeText(context, "Language set to ${lang.displayName}", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Language: ${lang.displayName}", Toast.LENGTH_SHORT).show()
                                     showLanguageDialog = false
                                 }
                                 .padding(vertical = 8.dp, horizontal = 8.dp),
@@ -1161,7 +1240,7 @@ fun SettingsScreen(
                                 onClick = {
                                     viewModel.setAppLanguage(lang)
                                     dev.chiraitori.anis.ui.i18n.I18n.applyLocale(context, lang)
-                                    Toast.makeText(context, "Language set to ${lang.displayName}", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Language: ${lang.displayName}", Toast.LENGTH_SHORT).show()
                                     showLanguageDialog = false
                                 }
                             )
@@ -1172,7 +1251,7 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showLanguageDialog = false }) { Text("Close") }
+                TextButton(onClick = { showLanguageDialog = false }) { Text(dev.chiraitori.anis.ui.i18n.tr("close", "Close")) }
             }
         )
     }
@@ -1181,7 +1260,7 @@ fun SettingsScreen(
     if (showLogRetentionDialog) {
         AlertDialog(
             onDismissRequest = { showLogRetentionDialog = false },
-            title = { Text("Query Log Retention", fontWeight = FontWeight.Bold) },
+            title = { Text(dev.chiraitori.anis.ui.i18n.tr("query_log_retention", "Query Log Retention"), fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     LogRetention.values().forEach { retention ->
@@ -1211,7 +1290,7 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showLogRetentionDialog = false }) { Text("Close") }
+                TextButton(onClick = { showLogRetentionDialog = false }) { Text(dev.chiraitori.anis.ui.i18n.tr("close", "Close")) }
             }
         )
     }
@@ -1219,8 +1298,8 @@ fun SettingsScreen(
     // 7. Whitelist Dialog
     if (showWhitelistDialog) {
         DomainListManagerDialog(
-            title = "Domain Whitelist",
-            subtitle = "Domains that will NEVER be blocked by any filter list",
+            title = dev.chiraitori.anis.ui.i18n.tr("domain_whitelist_title", "Domain Whitelist"),
+            subtitle = dev.chiraitori.anis.ui.i18n.tr("domain_whitelist_subtitle", "Domains that will NEVER be blocked by any filter list"),
             domains = whitelist,
             onAddDomain = { viewModel.addWhitelistDomain(it) },
             onRemoveDomain = { viewModel.removeWhitelistDomain(it) },
@@ -1231,8 +1310,8 @@ fun SettingsScreen(
     // 8. Blacklist Dialog
     if (showBlacklistDialog) {
         DomainListManagerDialog(
-            title = "Domain Blacklist",
-            subtitle = "Custom domains that will ALWAYS be blocked immediately",
+            title = dev.chiraitori.anis.ui.i18n.tr("domain_blacklist_title", "Domain Blacklist"),
+            subtitle = dev.chiraitori.anis.ui.i18n.tr("domain_blacklist_subtitle", "Custom domains that will ALWAYS be blocked immediately"),
             domains = blacklist,
             onAddDomain = { viewModel.addBlacklistDomain(it) },
             onRemoveDomain = { viewModel.removeBlacklistDomain(it) },
@@ -1279,11 +1358,11 @@ fun SettingsScreen(
         val backupJson = remember { viewModel.exportBackup() }
         AlertDialog(
             onDismissRequest = { showBackupDialog = false },
-            title = { Text("Settings Backup (JSON)", fontWeight = FontWeight.Bold) },
+            title = { Text(dev.chiraitori.anis.ui.i18n.tr("backup_export_title", "Settings Backup (JSON)"), fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     Text(
-                        text = "Copy this configuration string to save or transfer to another device:",
+                        text = dev.chiraitori.anis.ui.i18n.tr("backup_export_help", "Copy this configuration string to save or transfer to another device:"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1308,11 +1387,11 @@ fun SettingsScreen(
                     },
                     shape = ShapeCache.smooth16
                 ) {
-                    Text("Copy to Clipboard")
+                    Text(dev.chiraitori.anis.ui.i18n.tr("copy_to_clipboard", "Copy to Clipboard"))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showBackupDialog = false }) { Text("Close") }
+                TextButton(onClick = { showBackupDialog = false }) { Text(dev.chiraitori.anis.ui.i18n.tr("close", "Close")) }
             }
         )
     }
@@ -1322,11 +1401,11 @@ fun SettingsScreen(
         var restoreText by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showRestoreDialog = false },
-            title = { Text("Restore Configuration", fontWeight = FontWeight.Bold) },
+            title = { Text(dev.chiraitori.anis.ui.i18n.tr("restore_config_title", "Restore Configuration"), fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     Text(
-                        text = "Paste your exported JSON settings backup string below:",
+                        text = dev.chiraitori.anis.ui.i18n.tr("restore_config_help", "Paste your exported JSON settings backup string below:"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1356,11 +1435,11 @@ fun SettingsScreen(
                     },
                     shape = ShapeCache.smooth16
                 ) {
-                    Text("Restore")
+                    Text(dev.chiraitori.anis.ui.i18n.tr("restore", "Restore"))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showRestoreDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showRestoreDialog = false }) { Text(dev.chiraitori.anis.ui.i18n.tr("cancel", "Cancel")) }
             }
         )
     }
@@ -1369,9 +1448,9 @@ fun SettingsScreen(
     if (showResetStatsConfirm) {
         AlertDialog(
             onDismissRequest = { showResetStatsConfirm = false },
-            title = { Text("Clear All Query History?", fontWeight = FontWeight.Bold) },
+            title = { Text(dev.chiraitori.anis.ui.i18n.tr("clear_history_title", "Clear All Query History?"), fontWeight = FontWeight.Bold) },
             text = {
-                Text("This will permanently delete all stored live query logs and reset your total blocked metrics. Filter lists and custom rules will be preserved.")
+                Text(dev.chiraitori.anis.ui.i18n.tr("clear_history_help", "This will permanently delete all stored live query logs and reset your total blocked metrics. Filter lists and custom rules will be preserved."))
             },
             confirmButton = {
                 Button(
@@ -1383,45 +1462,61 @@ fun SettingsScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     shape = ShapeCache.smooth16
                 ) {
-                    Text("Clear Everything")
+                    Text(dev.chiraitori.anis.ui.i18n.tr("clear_everything", "Clear Everything"))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showResetStatsConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showResetStatsConfirm = false }) { Text(dev.chiraitori.anis.ui.i18n.tr("cancel", "Cancel")) }
             }
         )
     }
 
-    // 15. Magisk System CA Install Dialog
+    // 15. Root or rootless CA install dialog
     if (showCaInstallConfirm) {
         AlertDialog(
             onDismissRequest = { showCaInstallConfirm = false },
-            title = { Text("Install System Root Certificate", fontWeight = FontWeight.Bold) },
+            title = { Text(if (isRootAvailable) "Install System Root Certificate" else "Install HTTPS CA Certificate", fontWeight = FontWeight.Bold) },
             text = {
-                Text("Anis will create a Magisk module in /data/adb/modules/anis_root_ca and install its generated CA as a trusted System Certificate. A device reboot will be required afterwards to activate system-wide HTTPS filtering.")
+                Text(
+                    if (isRootAvailable) {
+                        "Anis will create a Magisk module and install its generated CA as a trusted system certificate. Reboot once after installation."
+                    } else {
+                        "Anis will save Anis-RootCA.crt to Downloads, then open Android Security settings. Choose Install a certificate → CA certificate and select that file."
+                    }
+                )
             },
             confirmButton = {
                 Button(
                     onClick = {
                         coroutineScope.launch {
-                            val success = withContext(Dispatchers.IO) {
-                                viewModel.installSystemCaCert()
-                            }
-                            if (success) {
-                                Toast.makeText(context, "Magisk module installed! Please reboot your device.", Toast.LENGTH_LONG).show()
+                            if (isRootAvailable) {
+                                val success = withContext(Dispatchers.IO) {
+                                    viewModel.installSystemCaCert()
+                                }
+                                if (success) {
+                                    Toast.makeText(context, "Magisk module installed! Please reboot your device.", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(context, "Failed to install Magisk module. Check root permission.", Toast.LENGTH_SHORT).show()
+                                }
                             } else {
-                                Toast.makeText(context, "Failed to install Magisk module. Check root permission.", Toast.LENGTH_SHORT).show()
+                                val result = withContext(Dispatchers.IO) { viewModel.caManager.exportCaToDownloads() }
+                                if (result.isSuccess) {
+                                    Toast.makeText(context, result.getOrNull(), Toast.LENGTH_LONG).show()
+                                    context.startActivity(viewModel.caManager.createInstallCertIntent())
+                                } else {
+                                    Toast.makeText(context, result.exceptionOrNull()?.message ?: "Failed to export certificate", Toast.LENGTH_LONG).show()
+                                }
                             }
                             showCaInstallConfirm = false
                         }
                     },
                     shape = ShapeCache.smooth16
                 ) {
-                    Text("Install Module")
+                    Text(if (isRootAvailable) "Install Module" else "Save & Open Settings")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showCaInstallConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showCaInstallConfirm = false }) { Text(dev.chiraitori.anis.ui.i18n.tr("cancel", "Cancel")) }
             }
         )
     }
@@ -1676,14 +1771,14 @@ private fun DomainListManagerDialog(
                             }
                         }
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add")
+                        Icon(Icons.Filled.Add, contentDescription = dev.chiraitori.anis.ui.i18n.tr("add", "Add"))
                     }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
                 if (domains.isEmpty()) {
-                    Text("No domains in this list", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(dev.chiraitori.anis.ui.i18n.tr("no_domains_in_list", "No domains in this list"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     LazyColumn(modifier = Modifier.height(200.dp)) {
                         items(domains.toList()) { domain ->
@@ -1696,7 +1791,7 @@ private fun DomainListManagerDialog(
                             ) {
                                 Text(domain, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                                 IconButton(onClick = { onRemoveDomain(domain) }, modifier = Modifier.size(28.dp)) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -1705,7 +1800,7 @@ private fun DomainListManagerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
+            TextButton(onClick = onDismiss) { Text(dev.chiraitori.anis.ui.i18n.tr("close", "Close")) }
         }
     )
 }
@@ -1722,16 +1817,16 @@ private fun CustomRulesManagerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Custom DNS Rewrites", fontWeight = FontWeight.Bold) },
+        title = { Text(dev.chiraitori.anis.ui.i18n.tr("dns_rewrites_title", "Custom DNS Rewrites"), fontWeight = FontWeight.Bold) },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text("Map specific hostnames to custom IP addresses locally", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(dev.chiraitori.anis.ui.i18n.tr("dns_rewrites_subtitle", "Map specific hostnames to custom IP addresses locally"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedTextField(
                     value = domain,
                     onValueChange = { domain = it },
-                    label = { Text("Domain (e.g. router.local)") },
+                    label = { Text(dev.chiraitori.anis.ui.i18n.tr("domain_hint", "Domain (e.g. router.local)")) },
                     singleLine = true,
                     shape = ShapeCache.smooth14,
                     modifier = Modifier.fillMaxWidth()
@@ -1740,7 +1835,7 @@ private fun CustomRulesManagerDialog(
                 OutlinedTextField(
                     value = targetIp,
                     onValueChange = { targetIp = it },
-                    label = { Text("Target IP (e.g. 192.168.1.1)") },
+                    label = { Text(dev.chiraitori.anis.ui.i18n.tr("target_ip_hint", "Target IP (e.g. 192.168.1.1)")) },
                     singleLine = true,
                     shape = ShapeCache.smooth14,
                     modifier = Modifier.fillMaxWidth()
@@ -1759,13 +1854,13 @@ private fun CustomRulesManagerDialog(
                     shape = ShapeCache.smooth14,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Add Rewrite Rule")
+                    Text(dev.chiraitori.anis.ui.i18n.tr("add_rewrite_rule", "Add Rewrite Rule"))
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
                 if (rules.isEmpty()) {
-                    Text("No custom rewrites configured", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(dev.chiraitori.anis.ui.i18n.tr("no_rewrites_configured", "No custom rewrites configured"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     LazyColumn(modifier = Modifier.height(160.dp)) {
                         items(rules) { rule ->
@@ -1790,7 +1885,7 @@ private fun CustomRulesManagerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
+            TextButton(onClick = onDismiss) { Text(dev.chiraitori.anis.ui.i18n.tr("close", "Close")) }
         }
     )
 }
@@ -1808,7 +1903,7 @@ private fun TrustedWifiManagerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Trusted Wi-Fi Networks", fontWeight = FontWeight.Bold) },
+        title = { Text(dev.chiraitori.anis.ui.i18n.tr("trusted_wifi_title", "Trusted Wi-Fi Networks"), fontWeight = FontWeight.Bold) },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
@@ -1816,12 +1911,12 @@ private fun TrustedWifiManagerDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Auto-Pause Protection", fontWeight = FontWeight.SemiBold)
+                    Text(dev.chiraitori.anis.ui.i18n.tr("autopause_protection", "Auto-Pause Protection"), fontWeight = FontWeight.SemiBold)
                     Switch(checked = isPauseEnabled, onCheckedChange = onTogglePause)
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("When connected to a listed Wi-Fi network, Anis pauses filtering automatically.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(dev.chiraitori.anis.ui.i18n.tr("trusted_wifi_help", "When connected to a listed Wi-Fi network, Anis pauses filtering automatically."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Row(
@@ -1845,14 +1940,14 @@ private fun TrustedWifiManagerDialog(
                             }
                         }
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add SSID")
+                        Icon(Icons.Filled.Add, contentDescription = dev.chiraitori.anis.ui.i18n.tr("add", "Add"))
                     }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
                 if (trustedSsids.isEmpty()) {
-                    Text("No trusted networks added", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(dev.chiraitori.anis.ui.i18n.tr("no_trusted_wifi", "No trusted networks added"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     LazyColumn(modifier = Modifier.height(160.dp)) {
                         items(trustedSsids.toList()) { ssid ->
@@ -1869,7 +1964,7 @@ private fun TrustedWifiManagerDialog(
                                     Text(ssid, style = MaterialTheme.typography.bodyMedium)
                                 }
                                 IconButton(onClick = { onRemoveSsid(ssid) }, modifier = Modifier.size(28.dp)) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -1878,7 +1973,7 @@ private fun TrustedWifiManagerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
+            TextButton(onClick = onDismiss) { Text(dev.chiraitori.anis.ui.i18n.tr("close", "Close")) }
         }
     )
 }
@@ -1897,16 +1992,16 @@ private fun AppBypassManagerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Bypassed Applications", fontWeight = FontWeight.Bold) },
+        title = { Text(dev.chiraitori.anis.ui.i18n.tr("bypassed_apps_title", "Bypassed Applications"), fontWeight = FontWeight.Bold) },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text("Selected applications will bypass DNS proxy and connect directly to the internet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(dev.chiraitori.anis.ui.i18n.tr("bypassed_apps_help", "Selected applications will bypass DNS proxy and connect directly to the internet."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search apps...") },
+                    placeholder = { Text(dev.chiraitori.anis.ui.i18n.tr("search_apps_placeholder", "Search apps or packages...")) },
                     singleLine = true,
                     shape = ShapeCache.smooth14,
                     modifier = Modifier.fillMaxWidth()
@@ -1941,7 +2036,7 @@ private fun AppBypassManagerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(dev.chiraitori.anis.ui.i18n.tr("done", "Done")) }
         }
     )
 }

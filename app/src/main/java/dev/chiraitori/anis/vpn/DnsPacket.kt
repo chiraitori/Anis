@@ -182,6 +182,53 @@ class DnsPacket(
         }
 
         /**
+         * Builds a REFUSED DNS error response (RCODE = 5)
+         */
+        fun buildRefusedResponse(query: DnsPacket): ByteArray {
+            val stream = ByteArrayOutputStream()
+
+            // Header (12 bytes)
+            val header = ByteBuffer.allocate(12)
+            header.putShort(query.transactionId)
+            header.putShort(0x8485.toShort()) // QR=1, AA=1, RA=1, RCODE=5 (Refused)
+            header.putShort(1.toShort()) // QDCOUNT = 1
+            header.putShort(0.toShort()) // ANCOUNT = 0
+            header.putShort(0.toShort()) // NSCOUNT = 0
+            header.putShort(0.toShort()) // ARCOUNT = 0
+            stream.write(header.array())
+
+            // Echo Question
+            val labels = query.qname.split(".")
+            for (label in labels) {
+                val bytes = label.toByteArray(Charsets.US_ASCII)
+                stream.write(bytes.size)
+                stream.write(bytes)
+            }
+            stream.write(0)
+
+            val qFooter = ByteBuffer.allocate(4)
+            qFooter.putShort(query.qtype.toShort())
+            qFooter.putShort(query.qclass.toShort())
+            stream.write(qFooter.array())
+
+            return stream.toByteArray()
+        }
+
+        /**
+         * Dispatches synthetic block response based on user DnsResponseType setting.
+         */
+        fun buildConfiguredBlockResponse(
+            query: DnsPacket,
+            responseType: dev.chiraitori.anis.data.model.DnsResponseType
+        ): ByteArray {
+            return when (responseType) {
+                dev.chiraitori.anis.data.model.DnsResponseType.ZERO_IP -> buildBlockResponse(query)
+                dev.chiraitori.anis.data.model.DnsResponseType.NXDOMAIN -> buildNxDomainResponse(query)
+                dev.chiraitori.anis.data.model.DnsResponseType.REFUSED -> buildRefusedResponse(query)
+            }
+        }
+
+        /**
          * Builds a synthetic DNS response rewriting the query to a target IPv4 address
          */
         fun buildIpResponse(query: DnsPacket, ipAddress: String): ByteArray {

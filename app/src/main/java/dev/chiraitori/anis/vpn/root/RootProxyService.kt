@@ -87,13 +87,25 @@ class RootProxyService : Service() {
 
         try {
             val enableHttps = settingsRepository.httpsFilteringEnabledFlow.value && settingsRepository.isCaInstalledFlow.value
+            val blockedPkgs = settingsRepository.firewallBlockedAppsFlow.value
+            val pm = packageManager
+            val blockedUids = blockedPkgs.mapNotNull { pkg ->
+                try { pm.getPackageUid(pkg, 0) } catch (e: Exception) { null }
+            }.toSet()
 
-            // Apply iptables redirection rules
+            val whitelistedPkgs = settingsRepository.whitelistedAppsFlow.value
+            val whitelistedUids = whitelistedPkgs.mapNotNull { pkg ->
+                try { pm.getPackageUid(pkg, 0) } catch (e: Exception) { null }
+            }.toSet()
+
+            // Apply iptables redirection and firewall rules
             val success = RootIptablesManager.setupRules(
                 context = this,
                 localPort = RootIptablesManager.DEFAULT_DNS_PORT,
                 httpsPort = RootIptablesManager.DEFAULT_HTTPS_PORT,
-                enableHttpsFiltering = enableHttps
+                enableHttpsFiltering = enableHttps,
+                whitelistedUids = whitelistedUids,
+                blockedUids = blockedUids
             )
 
             if (!success) {
@@ -244,7 +256,10 @@ class RootProxyService : Service() {
 
         when (decision) {
             is DnsDecision.Block -> {
-                val blockBytes = DnsPacket.buildBlockResponse(dnsPacket)
+                val blockBytes = DnsPacket.buildConfiguredBlockResponse(
+                    dnsPacket,
+                    settingsRepository.dnsResponseTypeFlow.value
+                )
                 onResponseReady(blockBytes)
 
                 queryLogRepository.logQuery(

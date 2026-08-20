@@ -9,6 +9,8 @@ import dev.chiraitori.anis.data.model.RuleType
 import dev.chiraitori.anis.vpn.CustomRuleParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +28,9 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 class BlockListRepository(private val context: Context) {
+
+    private val reloadScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var reloadJob: Job? = null
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("anis_blocklists_prefs", Context.MODE_PRIVATE)
@@ -51,10 +56,10 @@ class BlockListRepository(private val context: Context) {
 
     init {
         loadSources()
-        reloadActiveDomains()
 
-        // Asynchronously check and pull down missing blocklist files from network
+        // Asynchronously load active domains from storage and sync without blocking UI startup
         CoroutineScope(Dispatchers.IO).launch {
+            reloadActiveDomains()
             ensureEnabledListsDownloaded()
             syncRemoteSourcesIfDue()
         }
@@ -251,28 +256,36 @@ class BlockListRepository(private val context: Context) {
     }
 
     fun reloadActiveDomains() {
-        val newSet = mutableSetOf<String>()
+        val enabledSources = _sourcesFlow.value.filter { it.isEnabled }
 
-        _sourcesFlow.value.filter { it.isEnabled }.forEach { src ->
-            val file = File(blocklistDir, "${src.id}.txt")
-            if (file.exists() && file.length() > 0L) {
-                try {
-                    file.forEachLine { line ->
-                        val trimmed = line.trim().lowercase()
-                        if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
-                            newSet.add(trimmed)
+        synchronized(activeDomainsSet) {
+            activeDomainsSet.clear()
+            enabledSources.forEach { src ->
+                val file = File(blocklistDir, "${src.id}.txt")
+                if (file.exists() && file.length() > 0L) {
+                    try {
+                        file.forEachLine { line ->
+                            val trimmed = line.trim().lowercase()
+                            if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
+                                activeDomainsSet.add(trimmed)
+                            }
                         }
+                    } catch (e: Exception) {
+                        Log.e("BlockListRepo", "Error reading ${file.name}", e)
                     }
-                } catch (e: Exception) {
-                    Log.e("BlockListRepo", "Error reading ${file.name}", e)
                 }
             }
         }
 
-        activeDomainsSet.clear()
-        activeDomainsSet.addAll(newSet)
-
         QueryLogRepository.instance.updateActiveRulesCount(activeDomainsSet.size)
+        System.gc()
+    }
+
+    fun scheduleReloadActiveDomains() {
+        reloadJob?.cancel()
+        reloadJob = reloadScope.launch {
+            reloadActiveDomains()
+        }
     }
 
     fun toggleList(id: String, enabled: Boolean) {
@@ -281,21 +294,21 @@ class BlockListRepository(private val context: Context) {
         }
         _sourcesFlow.value = updated
         saveSources()
-        reloadActiveDomains()
+        scheduleReloadActiveDomains()
     }
 
     fun enableAllBlockLists() {
         val updated = _sourcesFlow.value.map { it.copy(isEnabled = true) }
         _sourcesFlow.value = updated
         saveSources()
-        reloadActiveDomains()
+        scheduleReloadActiveDomains()
     }
 
     fun disableAllBlockLists() {
         val updated = _sourcesFlow.value.map { it.copy(isEnabled = false) }
         _sourcesFlow.value = updated
         saveSources()
-        reloadActiveDomains()
+        scheduleReloadActiveDomains()
     }
 
     fun addCustomList(name: String, url: String, category: RuleCategory = RuleCategory.CUSTOM): BlockListSource {
@@ -325,7 +338,65 @@ class BlockListRepository(private val context: Context) {
         reloadActiveDomains()
     }
 
-    suspend fun updateAllLists() = withContext(Dispatchers.IO) {
+    fun exportBackupJson(): JSONArray = JSONArray().apply {
+        _sourcesFlow.value.forEach { source ->
+            put(JSONObject().apply {
+                put("id", source.id)
+                put("name", source.name)
+                put("url", source.url)
+                put("isEnabled", source.isEnabled)
+                put("category", source.category.name)
+                put("isCustom", source.isCustom)
+            })
+        }
+    }
+
+    fun importBackupJson(array: JSONArray): Boolean {
+        return try {
+            val currentDefaults = _sourcesFlow.value.filterNot { it.isCustom }
+            val enabledById = mutableMapOf<String, Boolean>()
+            val restoredCustom = mutableListOf<BlockListSource>()
+
+            for (index in 0 until minOf(array.length(), 250)) {
+                val item = array.getJSONObject(index)
+                val id = item.optString("id")
+                if (item.optBoolean("isCustom", false)) {
+                    val url = item.getString("url").trim()
+                    if (!url.startsWith("https://") && !url.startsWith("http://")) continue
+                    val safeId = id.takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,80}")) }
+                        ?: "custom_${System.currentTimeMillis()}_$index"
+                    restoredCustom += BlockListSource(
+                        id = safeId,
+                        name = item.optString("name", "Custom blocklist").take(100),
+                        description = "Custom blocklist from $url",
+                        url = url,
+                        isEnabled = item.optBoolean("isEnabled", true),
+                        category = runCatching {
+                            RuleCategory.valueOf(item.optString("category", RuleCategory.CUSTOM.name))
+                        }.getOrDefault(RuleCategory.CUSTOM),
+                        isCustom = true
+                    )
+                } else if (id.isNotBlank()) {
+                    enabledById[id] = item.optBoolean("isEnabled", true)
+                }
+            }
+
+            _sourcesFlow.value = currentDefaults.map { source ->
+                source.copy(isEnabled = enabledById[source.id] ?: source.isEnabled)
+            } + restoredCustom.distinctBy { it.id }
+            saveSources()
+            reloadScope.launch {
+                ensureEnabledListsDownloaded()
+                reloadActiveDomains()
+            }
+            true
+        } catch (error: Exception) {
+            Log.e("BlockListRepo", "Failed to restore blocklist settings", error)
+            false
+        }
+    }
+
+    suspend fun updateAllLists(onlyEnabled: Boolean = true) = withContext(Dispatchers.IO) {
         if (_isUpdatingFlow.value) return@withContext
         _isUpdatingFlow.value = true
 
@@ -333,20 +404,21 @@ class BlockListRepository(private val context: Context) {
         syncRemoteSourcesIfDue(force = true)
 
         val currentList = _sourcesFlow.value
-        val updatedList = mutableListOf<BlockListSource>()
+        val targets = if (onlyEnabled) currentList.filter { it.isEnabled } else currentList
+        val updatedMap = currentList.associateBy { it.id }.toMutableMap()
 
-        for (src in currentList) {
+        for (src in targets) {
             _updateProgressFlow.value = "Updating ${src.name}..."
             val count = fetchAndSaveList(src)
-            updatedList.add(
-                src.copy(
-                    ruleCount = if (count > 0) count else src.ruleCount,
+            if (count > 0) {
+                updatedMap[src.id] = src.copy(
+                    ruleCount = count,
                     lastUpdated = System.currentTimeMillis()
                 )
-            )
+            }
         }
 
-        _sourcesFlow.value = updatedList
+        _sourcesFlow.value = updatedMap.values.toList()
         saveSources()
         reloadActiveDomains()
 
@@ -380,27 +452,29 @@ class BlockListRepository(private val context: Context) {
                 if (!response.isSuccessful) return 0
                 val body = response.body ?: return 0
 
-                val parsedDomains = mutableSetOf<String>()
-                val reader = BufferedReader(InputStreamReader(body.byteStream()))
-                var line: String? = reader.readLine()
+                val tempFile = File(blocklistDir, "${source.id}.tmp")
+                val finalFile = File(blocklistDir, "${source.id}.txt")
+                var count = 0
 
-                while (line != null) {
-                    val parsed = CustomRuleParser.parseRule(line)
-                    if (parsed != null && parsed.ruleType == RuleType.BLOCK && parsed.domain.isNotEmpty()) {
-                        parsedDomains.add(parsed.domain)
-                    }
-                    line = reader.readLine()
-                }
-
-                if (parsedDomains.isNotEmpty()) {
-                    val file = File(blocklistDir, "${source.id}.txt")
-                    file.bufferedWriter().use { writer ->
-                        parsedDomains.forEach { domain ->
-                            writer.write(domain)
-                            writer.newLine()
+                tempFile.bufferedWriter().use { writer ->
+                    body.byteStream().bufferedReader().useLines { lines ->
+                        for (line in lines) {
+                            val parsed = CustomRuleParser.parseRule(line)
+                            if (parsed != null && parsed.ruleType == RuleType.BLOCK && parsed.domain.isNotEmpty()) {
+                                writer.write(parsed.domain)
+                                writer.newLine()
+                                count++
+                            }
                         }
                     }
-                    return parsedDomains.size
+                }
+
+                if (count > 0) {
+                    if (finalFile.exists()) finalFile.delete()
+                    tempFile.renameTo(finalFile)
+                    return count
+                } else {
+                    tempFile.delete()
                 }
             }
         } catch (e: Exception) {

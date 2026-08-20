@@ -3,7 +3,6 @@ package dev.chiraitori.anis.ui.components
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import androidx.collection.LruCache
 import androidx.compose.foundation.Image
@@ -15,7 +14,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,7 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object AppIconCache {
-    private val memoryCache = LruCache<String, ImageBitmap>(200)
+    private val memoryCache = LruCache<String, ImageBitmap>(300)
 
     fun get(packageName: String): ImageBitmap? = memoryCache.get(packageName)
 
@@ -45,32 +46,33 @@ object AppIconCache {
             try {
                 val pm = context.packageManager
                 val drawable = pm.getApplicationIcon(packageName)
-                val bitmap = drawableToBitmap(drawable)
+                val bitmap = safeDrawableToBitmap(drawable) ?: return@withContext null
                 val imageBitmap = bitmap.asImageBitmap()
                 put(packageName, imageBitmap)
                 imageBitmap
-            } catch (e: Exception) {
+            } catch (_: Throwable) {
                 null
             }
         }
     }
 
-    private fun drawableToBitmap(drawable: Drawable): Bitmap {
-        if (drawable is BitmapDrawable && drawable.bitmap != null) {
-            return drawable.bitmap
+    private fun safeDrawableToBitmap(drawable: Drawable): Bitmap? {
+        return try {
+            val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth.coerceIn(48, 128) else 96
+            val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight.coerceIn(48, 128) else 96
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, width, height)
+            drawable.draw(canvas)
+            bitmap
+        } catch (_: Throwable) {
+            null
         }
-        val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth.coerceAtMost(192) else 96
-        val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight.coerceAtMost(192) else 96
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        drawable.setBounds(0, 0, canvas.width, canvas.height)
-        drawable.draw(canvas)
-        return bitmap
     }
 }
 
 /**
- * Loads and renders the real installed Android application icon with smooth caching.
+ * High-performance Android application icon renderer with butter-smooth 120Hz scrolling.
  */
 @Composable
 fun AppIconImage(
@@ -80,9 +82,15 @@ fun AppIconImage(
     contentDescription: String? = null
 ) {
     val context = LocalContext.current
-    val imageBitmapState = produceState<ImageBitmap?>(initialValue = AppIconCache.get(packageName), key1 = packageName) {
-        if (value == null) {
-            value = AppIconCache.loadIcon(context, packageName)
+    val cachedBitmap = remember(packageName) { AppIconCache.get(packageName) }
+    val imageBitmapState = remember(packageName) { mutableStateOf(cachedBitmap) }
+
+    if (imageBitmapState.value == null) {
+        LaunchedEffect(packageName) {
+            val loaded = AppIconCache.loadIcon(context, packageName)
+            if (loaded != null) {
+                imageBitmapState.value = loaded
+            }
         }
     }
 

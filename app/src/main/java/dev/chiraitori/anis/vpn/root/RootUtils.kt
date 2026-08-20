@@ -3,6 +3,7 @@ package dev.chiraitori.anis.vpn.root
 import android.util.Log
 import java.io.BufferedReader
 import java.io.DataOutputStream
+import java.io.File
 import java.io.InputStreamReader
 
 data class ShellResult(
@@ -16,15 +17,31 @@ data class ShellResult(
 object RootUtils {
     private const val TAG = "RootUtils"
 
+    private val SU_BINARY_PATHS = listOf(
+        "/system/bin/su",
+        "/system/xbin/su",
+        "/sbin/su",
+        "/system/sd/xbin/su",
+        "/system/bin/failsafe/su",
+        "/data/local/xbin/su",
+        "/data/local/bin/su",
+        "/data/local/su",
+        "/data/adb/ksu/bin/su",
+        "/data/adb/ap/bin/su",
+        "/data/adb/magisk/su"
+    )
+
     /**
-     * Checks whether root access is available and granted.
+     * Checks whether root access is available and granted without throwing uncaught errors.
      */
     fun isRootAvailable(): Boolean {
         return try {
-            val result = executeCommand("id")
+            val hasSu = SU_BINARY_PATHS.any { File(it).exists() }
+            if (!hasSu) return false
+
+            val result = executeCommand("id", suppressLog = true)
             result.isSuccess && result.stdout.any { it.contains("uid=0") }
-        } catch (e: Exception) {
-            Log.w(TAG, "Root check failed: ${e.message}")
+        } catch (_: Throwable) {
             false
         }
     }
@@ -32,14 +49,14 @@ object RootUtils {
     /**
      * Executes a command with 'su'.
      */
-    fun executeCommand(command: String): ShellResult {
-        return executeCommands(listOf(command))
+    fun executeCommand(command: String, suppressLog: Boolean = false): ShellResult {
+        return executeCommands(listOf(command), suppressLog = suppressLog)
     }
 
     /**
      * Executes a batch of commands in a single root shell session.
      */
-    fun executeCommands(commands: List<String>): ShellResult {
+    fun executeCommands(commands: List<String>, suppressLog: Boolean = false): ShellResult {
         val stdoutList = mutableListOf<String>()
         val stderrList = mutableListOf<String>()
 
@@ -67,8 +84,10 @@ object RootUtils {
             val exitCode = process.waitFor()
             ShellResult(exitCode, stdoutList, stderrList)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to execute root commands", e)
-            ShellResult(-1, emptyList(), listOf(e.message ?: "Unknown error"))
+            if (!suppressLog) {
+                Log.d(TAG, "Root execution unavailable: ${e.message}")
+            }
+            ShellResult(-1, emptyList(), listOf(e.message ?: "Root unavailable"))
         }
     }
 }

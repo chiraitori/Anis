@@ -3,6 +3,7 @@ package dev.chiraitori.anis.ui.screens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -22,6 +23,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Checklist
@@ -41,9 +45,12 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -56,6 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -99,8 +107,13 @@ fun DashboardScreen(
     val isPausedByTrusted by viewModel.isPausedByTrusted.collectAsState()
     val isCaInstalled by viewModel.isCaInstalledFlow.collectAsState()
     val isCaDismissed by viewModel.isCaDismissedFlow.collectAsState()
+    val httpsFilteringEnabled by viewModel.httpsFilteringEnabledFlow.collectAsState()
 
     var showCaInstallDialog by remember { mutableStateOf(false) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.checkIsCaInstalled()
+    }
 
     LazyColumn(
         modifier = modifier
@@ -128,7 +141,7 @@ fun DashboardScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "System-Wide Adblocker & Firewall",
+                        text = dev.chiraitori.anis.ui.i18n.tr("app_subtitle", "System-Wide Adblocker & Firewall"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -137,29 +150,33 @@ fun DashboardScreen(
                 }
 
                 Surface(
-                    shape = ShapeCache.star6,
-                    color = if (isVpnRunning) EmeraldPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.size(46.dp)
+                    shape = ShapeCache.star4,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    modifier = Modifier.size(44.dp)
                 ) {
-                    Icon(
-                        imageVector = if (isVpnRunning) Icons.Filled.Security else Icons.Filled.Block,
-                        contentDescription = null,
-                        tint = if (isVpnRunning) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .padding(11.dp)
-                            .size(24.dp)
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.Dns,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
             }
         }
 
-        // Hero Status Shield Section
+        // Hero Protection Status Card
         item {
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = ShapeCache.smooth32,
                 colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    containerColor = if (isVpnRunning) {
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerHigh
+                    }
                 ),
                 elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
             ) {
@@ -175,64 +192,79 @@ fun DashboardScreen(
             }
         }
 
-        // HTTPS Root CA Certificate Warning Box (Auto-hides if already installed or dismissed)
-        if (!isCaInstalled && !isCaDismissed) {
-            item {
-                Surface(
+        // Permanent HTTPS Deep Filtering Card (Interactive)
+        item {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ShapeCache.smooth24)
+                    .clickable {
+                        if (!isCaInstalled) {
+                            showCaInstallDialog = true
+                        }
+                    },
+                shape = ShapeCache.smooth24,
+                color = if (!isCaInstalled) AmberWarning.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceContainerHigh,
+                border = BorderStroke(1.dp, if (!isCaInstalled) AmberWarning.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(ShapeCache.smooth24)
-                        .clickable { showCaInstallDialog = true },
-                    shape = ShapeCache.smooth24,
-                    color = AmberWarning.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, AmberWarning.copy(alpha = 0.35f))
+                        .padding(16.dp)
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
+                            Surface(
+                                shape = ShapeCache.star8,
+                                color = if (!isCaInstalled) AmberWarning.copy(alpha = 0.22f) else EmeraldPrimary.copy(alpha = 0.2f),
+                                modifier = Modifier.size(38.dp)
                             ) {
-                                Surface(
-                                    shape = ShapeCache.star8,
-                                    color = AmberWarning.copy(alpha = 0.22f),
-                                    modifier = Modifier.size(38.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Warning,
-                                        contentDescription = null,
-                                        tint = AmberWarning,
-                                        modifier = Modifier
-                                            .padding(9.dp)
-                                            .size(20.dp)
-                                    )
-                                }
+                                Icon(
+                                    imageVector = if (!isCaInstalled) Icons.Filled.Warning else Icons.Filled.Security,
+                                    contentDescription = null,
+                                    tint = if (!isCaInstalled) AmberWarning else EmeraldPrimary,
+                                    modifier = Modifier
+                                        .padding(9.dp)
+                                        .size(20.dp)
+                                )
+                            }
 
-                                Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
 
+                            Column {
                                 Text(
-                                    text = "Install CA Certificate",
+                                    text = dev.chiraitori.anis.ui.i18n.tr("install_ca_title", "Install HTTPS CA Certificate"),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
+                                Text(
+                                    text = if (isCaInstalled) dev.chiraitori.anis.ui.i18n.tr("ca_installed_badge", "CA Installed • HTTPS Ready") else dev.chiraitori.anis.ui.i18n.tr("ca_uninstalled_badge", "CA Certificate Not Installed"),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isCaInstalled) EmeraldPrimary else AmberWarning,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
+                        }
 
-                            Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
 
+                        if (!isCaInstalled) {
                             FilledTonalButton(
                                 onClick = { showCaInstallDialog = true },
-                                shape = ShapeCache.smooth14,
+                                shapes = ButtonDefaults.shapes(
+                                    shape = ShapeCache.smooth14,
+                                    pressedShape = ShapeCache.star4
+                                ),
                                 colors = ButtonDefaults.filledTonalButtonColors(
                                     containerColor = AmberWarning.copy(alpha = 0.25f),
                                     contentColor = MaterialTheme.colorScheme.onSurface
@@ -240,23 +272,27 @@ fun DashboardScreen(
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                             ) {
                                 Text(
-                                    text = "Setup",
+                                    text = dev.chiraitori.anis.ui.i18n.tr("setup", "Setup"),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
                                     maxLines = 1
                                 )
                             }
+                        } else {
+                            androidx.compose.material3.Switch(
+                                checked = httpsFilteringEnabled,
+                                onCheckedChange = { viewModel.setHttpsFilteringEnabled(it) }
+                            )
                         }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = "Install Anis CA certificate for deep in-app cosmetic HTTPS filtering and ad stripping.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 18.sp
-                        )
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = dev.chiraitori.anis.ui.i18n.tr("install_ca_desc", "CA certificate is required for deep HTTPS interception, in-app ad element blocking, and tracker sanitization. Tap here to install (supports Rootless & Root)."),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -273,15 +309,14 @@ fun DashboardScreen(
         // Threat Analytics Breakdown Bar
         item {
             ThreatBreakdownCard(
-                adsBlockedCount = stats.blockedQueries,
-                totalBlockedCount = stats.blockedQueries + stats.blockedFirewall
+                stats = stats
             )
         }
 
         // Metrics Grid (2x2)
         item {
             Text(
-                text = "Live Filtering Statistics",
+                text = dev.chiraitori.anis.ui.i18n.tr("stats_title", "Live Filtering Statistics"),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -296,18 +331,18 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 StatCard(
-                    title = "Ads Blocked",
+                    title = dev.chiraitori.anis.ui.i18n.tr("stats_blocked", "Ads Blocked"),
                     value = formatNumber(stats.blockedQueries),
-                    subtitle = "Ads & trackers dropped",
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("stats_blocked_desc", "Ads & trackers dropped"),
                     icon = Icons.Filled.Block,
                     accentColor = CoralRed,
                     modifier = Modifier.weight(1f)
                 )
 
                 StatCard(
-                    title = "Total Queries",
+                    title = dev.chiraitori.anis.ui.i18n.tr("stats_total", "Total Queries"),
                     value = formatNumber(stats.totalQueries),
-                    subtitle = "DNS lookups handled",
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("stats_total_desc", "DNS lookups handled"),
                     icon = Icons.Filled.QueryStats,
                     accentColor = IndigoPrimary,
                     modifier = Modifier.weight(1f)
@@ -321,18 +356,18 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 StatCard(
-                    title = "Block Rate",
+                    title = dev.chiraitori.anis.ui.i18n.tr("stats_block_rate", "Block Rate"),
                     value = "${String.format("%.1f", stats.blockRate)}%",
-                    subtitle = "Traffic filtered locally",
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("stats_rate_desc", "Traffic filtered locally"),
                     icon = Icons.Filled.Speed,
                     accentColor = EmeraldPrimary,
                     modifier = Modifier.weight(1f)
                 )
 
                 StatCard(
-                    title = "Active Rules",
+                    title = dev.chiraitori.anis.ui.i18n.tr("stats_active_rules", "Active Rules"),
                     value = formatNumber(stats.activeRulesCount.toLong()),
-                    subtitle = "Compiled block rules",
+                    subtitle = dev.chiraitori.anis.ui.i18n.tr("stats_rules_desc", "Compiled block rules"),
                     icon = Icons.Filled.Checklist,
                     accentColor = AmberWarning,
                     modifier = Modifier.weight(1f)
@@ -424,14 +459,14 @@ fun DashboardScreen(
                             Spacer(modifier = Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Upstream DNS",
+                                    text = dev.chiraitori.anis.ui.i18n.tr("upstream_dns", "Upstream DNS"),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = "Active: ${upstreamDns.name}",
+                                    text = "${dev.chiraitori.anis.ui.i18n.tr("active", "Active")}: ${upstreamDns.name}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
@@ -441,7 +476,7 @@ fun DashboardScreen(
                         }
 
                         TextButton(onClick = { onNavigate(AppDestination.SETTINGS) }) {
-                            Text("Configure", fontWeight = FontWeight.Bold)
+                            Text(dev.chiraitori.anis.ui.i18n.tr("configure", "Configure"), fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -476,7 +511,7 @@ fun DashboardScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Live DNS Stream",
+                    text = dev.chiraitori.anis.ui.i18n.tr("live_stream", "Live DNS Stream"),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -485,7 +520,7 @@ fun DashboardScreen(
                 )
 
                 TextButton(onClick = { onNavigate(AppDestination.LOGS) }) {
-                    Text("View All (${logs.size})", fontWeight = FontWeight.Bold)
+                    Text("${dev.chiraitori.anis.ui.i18n.tr("view_all", "View All")} (${logs.size})", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -530,124 +565,177 @@ fun DashboardScreen(
     }
 
     if (showCaInstallDialog) {
-        AlertDialog(
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
             onDismissRequest = { showCaInstallDialog = false },
-            icon = {
+            sheetState = sheetState,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 36.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Surface(
                     shape = ShapeCache.star8,
                     color = AmberWarning.copy(alpha = 0.18f),
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(54.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Security,
-                        contentDescription = null,
-                        tint = AmberWarning,
-                        modifier = Modifier.padding(12.dp)
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.Security,
+                            contentDescription = null,
+                            tint = AmberWarning,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
                 }
-            },
-            title = {
+
+                Spacer(modifier = Modifier.height(14.dp))
+
                 Text(
-                    text = "Install HTTPS CA Certificate",
+                    text = dev.chiraitori.anis.ui.i18n.tr("ca_dialog_title", "Install HTTPS CA Certificate"),
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleLarge
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
                 )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "To filter encrypted ads, banners, and trackers inside apps and browsers, Anis requires a Root CA certificate installed on your device.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
 
-                    Surface(
-                        shape = ShapeCache.smooth16,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = "1. Magisk / KernelSU (Root)",
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = EmeraldPrimary
-                            )
-                            Text(
-                                text = "Installs automatically as a system-trusted certificate module to /data/adb/modules/anis_root_ca (Reboot required).",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+                Spacer(modifier = Modifier.height(8.dp))
 
-                    Surface(
-                        shape = ShapeCache.smooth16,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = "2. User CA Certificate",
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = IndigoPrimary
-                            )
-                            Text(
-                                text = "Export the .CRT file and install via Android Settings → Security → Encryption & Credentials → Install CA Certificate.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            val success = withContext(Dispatchers.IO) {
-                                viewModel.installSystemCaCert()
-                            }
-                            if (success) {
-                                Toast.makeText(context, "Magisk CA module installed! Please reboot your device.", Toast.LENGTH_LONG).show()
-                            } else {
-                                Toast.makeText(context, "Root install failed or not rooted. You can export certificate manually.", Toast.LENGTH_SHORT).show()
-                            }
-                            showCaInstallDialog = false
-                        }
-                    },
-                    shape = ShapeCache.smooth16
+                Text(
+                    text = dev.chiraitori.anis.ui.i18n.tr("ca_dialog_desc", "To filter encrypted ads, banners, and trackers inside apps and browsers, Anis installs a local CA certificate (works on rootless and rooted devices)."),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // 1. Rootless (AdGuard method)
+                Surface(
+                    shape = ShapeCache.smooth20,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Install (Root Magisk)", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(
-                        onClick = {
-                            viewModel.dismissCaWarning()
-                            showCaInstallDialog = false
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = dev.chiraitori.anis.ui.i18n.tr("ca_rootless_title", "1. Rootless Installation (AdGuard style)"),
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = EmeraldPrimary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = dev.chiraitori.anis.ui.i18n.tr("ca_rootless_desc", "Saves 'Anis-RootCA.crt' to Downloads and opens Android Security Settings. Tap 'Install a certificate' → 'CA certificate'."),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    val result = withContext(Dispatchers.IO) {
+                                        viewModel.caManager.exportCaToDownloads()
+                                    }
+                                    result.onSuccess { msg ->
+                                        Toast.makeText(context, "$msg. Opening Certificate Settings...", Toast.LENGTH_LONG).show()
+                                        try {
+                                            context.startActivity(viewModel.caManager.createInstallCertIntent())
+                                        } catch (_: Exception) {
+                                            try {
+                                                context.startActivity(Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS))
+                                            } catch (_: Exception) {}
+                                        }
+                                        showCaInstallDialog = false
+                                    }.onFailure { e ->
+                                        Toast.makeText(context, "Export error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            shape = ShapeCache.smooth16,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(dev.chiraitori.anis.ui.i18n.tr("ca_btn_save_install", "Save & Install (Rootless)"), fontWeight = FontWeight.Bold)
                         }
-                    ) {
-                        Text("Don't show again")
                     }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 2. Magisk (Root method)
+                Surface(
+                    shape = ShapeCache.smooth20,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = dev.chiraitori.anis.ui.i18n.tr("ca_root_title", "2. Magisk / KernelSU (Root)"),
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = IndigoPrimary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = dev.chiraitori.anis.ui.i18n.tr("ca_root_desc", "Installs automatically as a system-trusted certificate module to /data/adb/modules/anis_root_ca (Reboot required)."),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    val success = withContext(Dispatchers.IO) {
+                                        viewModel.installSystemCaCert()
+                                    }
+                                    if (success) {
+                                        Toast.makeText(context, "Magisk CA module installed! Please reboot your device.", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(context, "Root install failed or not rooted. Use Rootless option above.", Toast.LENGTH_SHORT).show()
+                                    }
+                                    showCaInstallDialog = false
+                                }
+                            },
+                            shape = ShapeCache.smooth16,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(dev.chiraitori.anis.ui.i18n.tr("ca_btn_root", "Install (Root Magisk)"), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     TextButton(
                         onClick = {
                             val certPem = viewModel.caManager.getOrCreateCaCertificatePem()
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             val clip = ClipData.newPlainText("Anis Root CA Certificate", certPem)
                             clipboard.setPrimaryClip(clip)
-                            viewModel.markCaInstalled()
                             Toast.makeText(context, "CA Certificate PEM copied to clipboard!", Toast.LENGTH_LONG).show()
                             showCaInstallDialog = false
                         }
                     ) {
-                        Text("Copy PEM")
+                        Text(dev.chiraitori.anis.ui.i18n.tr("ca_copy_pem", "Copy PEM"))
+                    }
+
+                    TextButton(
+                        onClick = { showCaInstallDialog = false }
+                    ) {
+                        Text(dev.chiraitori.anis.ui.i18n.tr("close", "Close"))
                     }
                 }
             }
-        )
+        }
     }
 }
 
