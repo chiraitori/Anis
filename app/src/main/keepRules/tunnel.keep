@@ -1,0 +1,5 @@
+# gomobile's generated bridge is entered from JNI. Keep names and members stable.
+-keep class tunnel.** { *; }
+-keepclassmembers class * {
+    native <methods>;
+}

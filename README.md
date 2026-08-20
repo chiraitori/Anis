@@ -64,11 +64,15 @@ cd anis
 # Assemble debug APK
 ./gradlew assembleDebug
 
+# Build optimized release APKs for each CPU ABI plus a universal APK
+./gradlew assembleRelease
+
 # Optional: rebuild app/libs/tunnel.aar after changing tunnel/*.go
 ./gradlew :app:buildGoTunnel
 
-# Output APK path:
-# app/build/outputs/apk/debug/app-debug.apk
+# Output directories:
+# app/build/outputs/apk/debug/
+# app/build/outputs/apk/release/
 ```
 
 ### Install via ADB
