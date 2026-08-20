@@ -3,6 +3,7 @@ package dev.chiraitori.anis.vpn
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
+import android.util.Log
 import androidx.core.content.ContextCompat
 import dev.chiraitori.anis.data.SettingsRepository
 import dev.chiraitori.anis.data.model.ProtectionMode
@@ -20,47 +21,94 @@ object VpnState {
 
     fun setRunning(running: Boolean) {
         _isRunningFlow.value = running
-        if (running) {
-            _isStartingFlow.value = false
-        }
+        _isStartingFlow.value = false
     }
 
     fun setStarting(starting: Boolean) {
         _isStartingFlow.value = starting
+        if (starting) {
+            _isRunningFlow.value = false
+        }
     }
+
+    val isActiveOrStarting: Boolean
+        get() = _isRunningFlow.value || _isStartingFlow.value
 }
 
 class VpnController(private val context: Context) {
 
     private val settingsRepo by lazy { SettingsRepository.getInstance(context) }
+    private var activeMode: ProtectionMode? = null
 
     fun isVpnPrepared(): Boolean {
         return VpnService.prepare(context) == null
     }
 
+    @Synchronized
     fun startProtection() {
-        VpnState.setStarting(true)
-        val mode = settingsRepo.protectionModeFlow.value
+        if (VpnState.isActiveOrStarting) return
 
-        if (mode == ProtectionMode.ROOT_PROXY) {
-            RootProxyService.start(context)
-        } else {
-            val intent = Intent(context, AdBlockVpnService::class.java).apply {
-                action = AdBlockVpnService.ACTION_START
+        val mode = settingsRepo.protectionModeFlow.value
+        if (mode == ProtectionMode.LOCAL_VPN && !isVpnPrepared()) {
+            VpnState.setRunning(false)
+            return
+        }
+
+        activeMode = mode
+        VpnState.setStarting(true)
+
+        try {
+            if (mode == ProtectionMode.ROOT_PROXY) {
+                RootProxyService.start(context)
+            } else {
+                val intent = Intent(context, AdBlockVpnService::class.java).apply {
+                    action = AdBlockVpnService.ACTION_START
+                }
+                ContextCompat.startForegroundService(context, intent)
             }
-            ContextCompat.startForegroundService(context, intent)
+        } catch (error: Exception) {
+            Log.e(TAG, "Unable to dispatch protection start", error)
+            activeMode = null
+            VpnState.setRunning(false)
         }
     }
 
+    @Synchronized
     fun stopProtection() {
-        // Stop both to ensure clean teardown
-        val vpnIntent = Intent(context, AdBlockVpnService::class.java).apply {
-            action = AdBlockVpnService.ACTION_STOP
+        if (!VpnState.isActiveOrStarting && activeMode == null) {
+            VpnState.setRunning(false)
+            return
         }
-        context.startService(vpnIntent)
-        RootProxyService.stop(context)
 
-        VpnState.setRunning(false)
+        // A VpnService stays bound by Android while its TUN is active, so stopService()
+        // alone does not destroy it. Deliver an explicit stop command so the service
+        // closes the native tunnel and file descriptor before calling stopSelf().
+        VpnState.setStarting(false)
+        val modeToStop = activeMode ?: settingsRepo.protectionModeFlow.value
+        try {
+            when (modeToStop) {
+                ProtectionMode.LOCAL_VPN -> context.startService(
+                    Intent(context, AdBlockVpnService::class.java).apply {
+                        action = AdBlockVpnService.ACTION_STOP
+                    }
+                )
+                ProtectionMode.ROOT_PROXY -> RootProxyService.stop(context)
+            }
+            activeMode = null
+            VpnState.setRunning(false)
+        } catch (error: Exception) {
+            Log.e(TAG, "Unable to dispatch protection stop", error)
+            when (modeToStop) {
+                ProtectionMode.LOCAL_VPN -> context.stopService(
+                    Intent(context, AdBlockVpnService::class.java)
+                )
+                ProtectionMode.ROOT_PROXY -> context.stopService(
+                    Intent(context, RootProxyService::class.java)
+                )
+            }
+            activeMode = null
+            VpnState.setRunning(false)
+        }
     }
 
     fun restartProtection() {
@@ -76,6 +124,8 @@ class VpnController(private val context: Context) {
     fun restartVpn() = restartProtection()
 
     companion object {
+        private const val TAG = "VpnController"
+
         @Volatile
         private var instance: VpnController? = null
 

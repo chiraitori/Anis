@@ -90,6 +90,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun DashboardScreen(
     viewModel: MainViewModel,
+    onToggleVpn: () -> Unit,
     onNavigate: (AppDestination) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -184,7 +185,7 @@ fun DashboardScreen(
                     isActive = isVpnRunning,
                     isStarting = isStarting,
                     activeRulesCount = stats.activeRulesCount,
-                    onToggle = { viewModel.toggleVpn() },
+                    onToggle = onToggleVpn,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 18.dp)

@@ -144,7 +144,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleVpn() {
-        if (isVpnRunning.value) {
+        if (VpnState.isActiveOrStarting) {
             vpnController.stopVpn()
         } else {
             vpnController.startVpn()

@@ -45,6 +45,7 @@ import dev.chiraitori.anis.ui.screens.FirewallScreen
 import dev.chiraitori.anis.ui.screens.QueryLogsScreen
 import dev.chiraitori.anis.ui.screens.SettingsScreen
 import dev.chiraitori.anis.ui.screens.SetupScreen
+import dev.chiraitori.anis.data.model.ProtectionMode
 
 @Composable
 fun MainApp(
@@ -73,6 +74,7 @@ fun MainApp(
     val firewallApps by viewModel.firewallApps.collectAsState()
     val blockedAppsCount = firewallApps.count { it.isBlocked }
     val hapticsEnabled by viewModel.hapticsEnabled.collectAsState()
+    val protectionMode by viewModel.protectionMode.collectAsState()
 
     // VPN Consent Launcher
     val vpnConsentLauncher = rememberLauncherForActivityResult(
@@ -114,6 +116,20 @@ fun MainApp(
             when (destination) {
                 AppDestination.DASHBOARD -> DashboardScreen(
                     viewModel = viewModel,
+                    onToggleVpn = {
+                        if (viewModel.isVpnRunning.value || viewModel.isStarting.value) {
+                            viewModel.stopVpn()
+                        } else if (protectionMode == ProtectionMode.LOCAL_VPN) {
+                            val consentIntent = VpnService.prepare(context)
+                            if (consentIntent != null) {
+                                vpnConsentLauncher.launch(consentIntent)
+                            } else {
+                                viewModel.startVpn()
+                            }
+                        } else {
+                            viewModel.startVpn()
+                        }
+                    },
                     onNavigate = { currentDestination = it }
                 )
                 AppDestination.BLOCKLISTS -> BlockListsScreen(
