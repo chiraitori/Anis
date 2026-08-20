@@ -1,22 +1,38 @@
 package dev.chiraitori.anis.ui.screens
 
+import android.Manifest
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.VpnService
 import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +40,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -48,9 +65,11 @@ import androidx.compose.material.icons.filled.VpnLock
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -67,18 +86,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import dev.chiraitori.anis.data.model.DefaultDnsProviders
 import dev.chiraitori.anis.data.model.ProtectionMode
 import dev.chiraitori.anis.ui.MainViewModel
@@ -87,6 +114,9 @@ import dev.chiraitori.anis.ui.theme.CoralRed
 import dev.chiraitori.anis.ui.theme.EmeraldPrimary
 import dev.chiraitori.anis.ui.theme.IndigoPrimary
 import dev.chiraitori.anis.ui.theme.shapes.ShapeCache
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class SetupStep(val title: String) {
     WELCOME("Welcome"),
@@ -107,6 +137,9 @@ fun SetupScreen(
     var currentStepIndex by remember { mutableIntStateOf(0) }
     val steps = SetupStep.values()
     val currentStep = steps[currentStepIndex]
+    val protectionMode by viewModel.protectionMode.collectAsState()
+    val isRootAvailable by viewModel.isRootAvailableFlow.collectAsState()
+    val motionEnabled = remember { ValueAnimator.areAnimatorsEnabled() }
 
     // VPN launcher
     var isVpnGranted by remember { mutableStateOf(viewModel.isVpnPrepared()) }
@@ -120,31 +153,43 @@ fun SetupScreen(
     }
 
     // Notification launcher (Android 13+)
-    var isNotificationGranted by remember { mutableStateOf(true) }
+    var isNotificationGranted by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        )
+    }
     val notificationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         isNotificationGranted = granted
+        viewModel.setAutoUpdateNotification(granted)
     }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            viewModel.setAutoUpdateNotification(isNotificationGranted)
+        }
+    }
+
+    val canContinue = when (currentStep) {
+        SetupStep.VPN_PERMISSION -> if (protectionMode == ProtectionMode.ROOT_PROXY) isRootAvailable else isVpnGranted
+        else -> true
+    }
+
+    BackHandler(enabled = currentStepIndex > 0) { currentStepIndex-- }
 
     Scaffold(
         modifier = modifier
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding(),
-        topBar = {
-            SetupProgressBar(
-                currentStepIndex = currentStepIndex,
-                totalSteps = steps.size,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 12.dp)
-            )
-        },
         bottomBar = {
             SetupBottomBar(
                 currentStepIndex = currentStepIndex,
                 totalSteps = steps.size,
+                canContinue = canContinue,
+                motionEnabled = motionEnabled,
                 onBack = { if (currentStepIndex > 0) currentStepIndex-- },
                 onNext = {
                     if (currentStepIndex < steps.size - 1) {
@@ -155,9 +200,7 @@ fun SetupScreen(
                         onComplete()
                     }
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 14.dp)
+                modifier = Modifier.fillMaxWidth()
             )
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -170,15 +213,25 @@ fun SetupScreen(
             AnimatedContent(
                 targetState = currentStep,
                 transitionSpec = {
-                    if (targetState.ordinal > initialState.ordinal) {
-                        (slideInHorizontally { width -> width } + fadeIn()).togetherWith(
-                            slideOutHorizontally { width -> -width } + fadeOut()
-                        )
+                    if (!motionEnabled) {
+                        fadeIn(snap()) togetherWith fadeOut(snap())
+                    } else if (targetState.ordinal > initialState.ordinal) {
+                        (slideInHorizontally(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        ) { width -> width / 3 } + fadeIn(tween(260)) + scaleIn(initialScale = 0.96f)) togetherWith
+                            (slideOutHorizontally(tween(180)) { width -> -width / 5 } + fadeOut(tween(150)) + scaleOut(targetScale = 0.985f))
                     } else {
-                        (slideInHorizontally { width -> -width } + fadeIn()).togetherWith(
-                            slideOutHorizontally { width -> width } + fadeOut()
-                        )
-                    }
+                        (slideInHorizontally(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        ) { width -> -width / 3 } + fadeIn(tween(260)) + scaleIn(initialScale = 0.96f)) togetherWith
+                            (slideOutHorizontally(tween(180)) { width -> width / 5 } + fadeOut(tween(150)) + scaleOut(targetScale = 0.985f))
+                    }.using(SizeTransform(clip = false))
                 },
                 label = "SetupStepTransition"
             ) { step ->
@@ -209,13 +262,7 @@ fun SetupScreen(
                         }
                     )
                     SetupStep.DNS_PROFILE -> DnsProfileStepPage(viewModel = viewModel)
-                    SetupStep.FINISH -> FinishStepPage(
-                        onStartApp = {
-                            viewModel.completeOnboarding()
-                            viewModel.startVpn()
-                            onComplete()
-                        }
-                    )
+                    SetupStep.FINISH -> FinishStepPage()
                 }
             }
         }
@@ -229,17 +276,31 @@ private fun SetupProgressBar(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier,
+        modifier = modifier.semantics {
+            progressBarRangeInfo = ProgressBarRangeInfo(
+                current = (currentStepIndex + 1).toFloat(),
+                range = 1f..totalSteps.toFloat(),
+                steps = (totalSteps - 2).coerceAtLeast(0)
+            )
+        },
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         for (i in 0 until totalSteps) {
             val isActive = i <= currentStepIndex
             val isCurrent = i == currentStepIndex
+            val segmentWeight by animateFloatAsState(
+                targetValue = if (isCurrent) 2.5f else 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                ),
+                label = "setup_progress_weight"
+            )
 
             Box(
                 modifier = Modifier
-                    .weight(if (isCurrent) 2.5f else 1f)
+                    .weight(segmentWeight)
                     .height(5.dp)
                     .clip(ShapeCache.smooth10)
                     .background(
@@ -268,21 +329,12 @@ private fun WelcomeStepPage(
     ) {
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Hero Logo Shield with Material 3 Expressive Star8 Shape
-        Surface(
-            shape = ShapeCache.star8,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(86.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Filled.Shield,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(44.dp)
-                )
-            }
-        }
+        SetupIconCollage(
+            primaryIcon = Icons.Filled.Shield,
+            supportingIcons = listOf(Icons.Filled.Dns, Icons.Filled.Security, Icons.Filled.LocalFireDepartment, Icons.Filled.Key),
+            primaryColor = MaterialTheme.colorScheme.primary,
+            primaryShape = ShapeCache.star8
+        )
 
         Spacer(modifier = Modifier.height(14.dp))
 
@@ -364,20 +416,12 @@ private fun VpnPermissionStepPage(
     ) {
         Spacer(modifier = Modifier.height(10.dp))
 
-        Surface(
-            shape = ShapeCache.star8,
-            color = if (protectionMode == ProtectionMode.ROOT_PROXY || isGranted) EmeraldPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(86.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = if (protectionMode == ProtectionMode.ROOT_PROXY) Icons.Filled.Security else if (isGranted) Icons.Filled.CheckCircle else Icons.Filled.VpnLock,
-                    contentDescription = null,
-                    tint = if (protectionMode == ProtectionMode.ROOT_PROXY || isGranted) EmeraldPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(44.dp)
-                )
-            }
-        }
+        SetupIconCollage(
+            primaryIcon = if (protectionMode == ProtectionMode.ROOT_PROXY) Icons.Filled.Security else if (isGranted) Icons.Filled.CheckCircle else Icons.Filled.VpnLock,
+            supportingIcons = listOf(Icons.Filled.Shield, Icons.Filled.Dns, Icons.Filled.Security, Icons.Filled.Check),
+            primaryColor = if (protectionMode == ProtectionMode.ROOT_PROXY || isGranted) EmeraldPrimary else MaterialTheme.colorScheme.primary,
+            primaryShape = ShapeCache.star8
+        )
 
         Spacer(modifier = Modifier.height(14.dp))
 
@@ -589,10 +633,12 @@ private fun HttpsCaStepPage(
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
     var isCertExported by remember { mutableStateOf(false) }
+    var isExporting by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        viewModel.caManager.getOrCreateCaCertificatePem()
+        withContext(Dispatchers.IO) { viewModel.caManager.getOrCreateCaCertificatePem() }
     }
 
     Column(
@@ -604,20 +650,12 @@ private fun HttpsCaStepPage(
     ) {
         Spacer(modifier = Modifier.height(10.dp))
 
-        Surface(
-            shape = ShapeCache.star6,
-            color = IndigoPrimary.copy(alpha = 0.15f),
-            modifier = Modifier.size(86.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Filled.Key,
-                    contentDescription = null,
-                    tint = IndigoPrimary,
-                    modifier = Modifier.size(44.dp)
-                )
-            }
-        }
+        SetupIconCollage(
+            primaryIcon = Icons.Filled.Key,
+            supportingIcons = listOf(Icons.Filled.Security, Icons.Filled.Download, Icons.Filled.Shield, Icons.Filled.CheckCircle),
+            primaryColor = IndigoPrimary,
+            primaryShape = ShapeCache.star6
+        )
 
         Spacer(modifier = Modifier.height(14.dp))
 
@@ -681,22 +719,31 @@ private fun HttpsCaStepPage(
         ) {
             FilledTonalButton(
                 onClick = {
-                    val res = viewModel.caManager.exportCaToDownloads()
-                    if (res.isSuccess) {
-                        isCertExported = true
-                        Toast.makeText(context, "Saved 'Anis-RootCA.crt' to Downloads!", Toast.LENGTH_LONG).show()
-                    } else {
-                        Toast.makeText(context, "Export error: ${res.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                    coroutineScope.launch {
+                        isExporting = true
+                        val res = withContext(Dispatchers.IO) { viewModel.caManager.exportCaToDownloads() }
+                        isExporting = false
+                        if (res.isSuccess) {
+                            isCertExported = true
+                            Toast.makeText(context, "Saved 'Anis-RootCA.crt' to Downloads!", Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(context, "Export error: ${res.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
+                enabled = !isExporting,
                 shape = ShapeCache.smooth14,
                 modifier = Modifier
                     .weight(1f)
                     .height(48.dp)
             ) {
-                Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                if (isExporting) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                }
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("1. Save CA", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(if (isExporting) "Saving…" else if (isCertExported) "CA Saved" else "1. Save CA", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 
             Button(
@@ -741,20 +788,12 @@ private fun NotificationsStepPage(
     ) {
         Spacer(modifier = Modifier.height(10.dp))
 
-        Surface(
-            shape = ShapeCache.star8,
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            modifier = Modifier.size(86.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Filled.NotificationsActive,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(44.dp)
-                )
-            }
-        }
+        SetupIconCollage(
+            primaryIcon = if (isGranted) Icons.Filled.CheckCircle else Icons.Filled.NotificationsActive,
+            supportingIcons = listOf(Icons.Filled.Shield, Icons.Filled.Security, Icons.Filled.Dns, Icons.Filled.Check),
+            primaryColor = if (isGranted) EmeraldPrimary else MaterialTheme.colorScheme.secondary,
+            primaryShape = ShapeCache.star8
+        )
 
         Spacer(modifier = Modifier.height(14.dp))
 
@@ -783,14 +822,15 @@ private fun NotificationsStepPage(
 
         Button(
             onClick = onRequestPermission,
+            enabled = !isGranted,
             shape = ShapeCache.smooth14,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
         ) {
-            Icon(Icons.Filled.NotificationsActive, contentDescription = null)
+            Icon(if (isGranted) Icons.Filled.Check else Icons.Filled.NotificationsActive, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Enable Notifications", fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(if (isGranted) "Notifications enabled" else "Enable Notifications", fontWeight = FontWeight.Bold, maxLines = 1)
         }
 
         Spacer(modifier = Modifier.height(14.dp))
@@ -816,20 +856,12 @@ private fun DnsProfileStepPage(
     ) {
         Spacer(modifier = Modifier.height(10.dp))
 
-        Surface(
-            shape = ShapeCache.star6,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(86.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Filled.Dns,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(44.dp)
-                )
-            }
-        }
+        SetupIconCollage(
+            primaryIcon = Icons.Filled.Dns,
+            supportingIcons = listOf(Icons.Filled.Shield, Icons.Filled.Security, Icons.Filled.VpnLock, Icons.Filled.CheckCircle),
+            primaryColor = MaterialTheme.colorScheme.primary,
+            primaryShape = ShapeCache.star6
+        )
 
         Spacer(modifier = Modifier.height(14.dp))
 
@@ -912,10 +944,7 @@ private fun DnsProfileStepPage(
 // ──────────────── Step 6: Finish ────────────────
 
 @Composable
-private fun FinishStepPage(
-    onStartApp: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun FinishStepPage(modifier: Modifier = Modifier) {
     val scrollState = rememberScrollState()
 
     Column(
@@ -927,21 +956,12 @@ private fun FinishStepPage(
     ) {
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 12-point scalloped star badge
-        Surface(
-            shape = ShapeCache.star12,
-            color = EmeraldPrimary,
-            modifier = Modifier.size(96.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(50.dp)
-                )
-            }
-        }
+        SetupIconCollage(
+            primaryIcon = Icons.Filled.Check,
+            supportingIcons = listOf(Icons.Filled.Shield, Icons.Filled.RocketLaunch, Icons.Filled.Dns, Icons.Filled.Security),
+            primaryColor = EmeraldPrimary,
+            primaryShape = ShapeCache.star12
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -966,26 +986,131 @@ private fun FinishStepPage(
             overflow = TextOverflow.Ellipsis
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = onStartApp,
-            shape = ShapeCache.smooth18,
-            colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-        ) {
-            Icon(Icons.Filled.RocketLaunch, contentDescription = null, tint = Color.White)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Launch Protection", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
-        }
-
         Spacer(modifier = Modifier.height(14.dp))
     }
 }
 
 // ──────────────── Reusable Components ────────────────
+
+@Composable
+private fun SetupIconCollage(
+    primaryIcon: ImageVector,
+    supportingIcons: List<ImageVector>,
+    primaryColor: Color,
+    primaryShape: androidx.compose.ui.graphics.Shape,
+    modifier: Modifier = Modifier
+) {
+    var entered by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { entered = true }
+    val motionEnabled = remember { ValueAnimator.areAnimatorsEnabled() }
+    val centerScale by animateFloatAsState(
+        targetValue = if (entered) 1f else 0.78f,
+        animationSpec = if (motionEnabled) {
+            spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+        } else {
+            snap()
+        },
+        label = "setup_collage_scale"
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(174.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        SetupSatelliteIcon(
+            icon = supportingIcons.getOrElse(0) { Icons.Filled.Shield },
+            color = MaterialTheme.colorScheme.secondary,
+            shape = ShapeCache.star4,
+            alignment = Alignment.TopStart,
+            offsetX = 28.dp,
+            offsetY = 12.dp,
+            rotation = -13f
+        )
+        SetupSatelliteIcon(
+            icon = supportingIcons.getOrElse(1) { Icons.Filled.Security },
+            color = MaterialTheme.colorScheme.tertiary,
+            shape = ShapeCache.roundedHexagon,
+            alignment = Alignment.TopEnd,
+            offsetX = (-24).dp,
+            offsetY = 20.dp,
+            rotation = 16f,
+            size = 62.dp
+        )
+        SetupSatelliteIcon(
+            icon = supportingIcons.getOrElse(2) { Icons.Filled.Dns },
+            color = MaterialTheme.colorScheme.primary,
+            shape = ShapeCache.star6,
+            alignment = Alignment.BottomStart,
+            offsetX = 46.dp,
+            offsetY = (-8).dp,
+            rotation = 11f,
+            size = 54.dp
+        )
+        SetupSatelliteIcon(
+            icon = supportingIcons.getOrElse(3) { Icons.Filled.CheckCircle },
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            shape = ShapeCache.star8,
+            alignment = Alignment.BottomEnd,
+            offsetX = (-42).dp,
+            offsetY = (-2).dp,
+            rotation = -10f,
+            size = 50.dp
+        )
+
+        Surface(
+            shape = primaryShape,
+            color = primaryColor.copy(alpha = 0.18f),
+            contentColor = primaryColor,
+            tonalElevation = 2.dp,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(112.dp)
+                .graphicsLayer {
+                    scaleX = centerScale
+                    scaleY = centerScale
+                    rotationZ = -5f + (centerScale * 5f)
+                }
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = primaryIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(52.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.SetupSatelliteIcon(
+    icon: ImageVector,
+    color: Color,
+    shape: androidx.compose.ui.graphics.Shape,
+    alignment: Alignment,
+    offsetX: androidx.compose.ui.unit.Dp,
+    offsetY: androidx.compose.ui.unit.Dp,
+    rotation: Float,
+    size: androidx.compose.ui.unit.Dp = 58.dp
+) {
+    Surface(
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = color,
+        tonalElevation = 1.dp,
+        modifier = Modifier
+            .align(alignment)
+            .offset(offsetX, offsetY)
+            .size(size)
+            .rotate(rotation)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(size * 0.43f))
+        }
+    }
+}
 
 @Composable
 private fun FeatureHighlightCard(
@@ -1046,36 +1171,139 @@ private fun FeatureHighlightCard(
 private fun SetupBottomBar(
     currentStepIndex: Int,
     totalSteps: Int,
+    canContinue: Boolean,
+    motionEnabled: Boolean,
     onBack: () -> Unit,
     onNext: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (currentStepIndex > 0 && currentStepIndex < totalSteps - 1) {
-            OutlinedButton(
-                onClick = onBack,
-                shape = ShapeCache.smooth12
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Back", fontWeight = FontWeight.SemiBold, maxLines = 1)
-            }
-        } else {
-            Spacer(modifier = Modifier.width(1.dp))
-        }
+    val cornerTargets = when (currentStepIndex % 3) {
+        0 -> listOf(30.dp, 30.dp, 30.dp, 30.dp)
+        1 -> listOf(18.dp, 30.dp, 18.dp, 30.dp)
+        else -> listOf(30.dp, 16.dp, 30.dp, 16.dp)
+    }
+    val cornerSpec = if (motionEnabled) tween<androidx.compose.ui.unit.Dp>(520) else snap()
+    val topStart by animateDpAsState(cornerTargets[0], cornerSpec, label = "setup_cta_top_start")
+    val topEnd by animateDpAsState(cornerTargets[1], cornerSpec, label = "setup_cta_top_end")
+    val bottomStart by animateDpAsState(cornerTargets[2], cornerSpec, label = "setup_cta_bottom_start")
+    val bottomEnd by animateDpAsState(cornerTargets[3], cornerSpec, label = "setup_cta_bottom_end")
+    val rotation by animateFloatAsState(
+        targetValue = currentStepIndex * 360f,
+        animationSpec = if (motionEnabled) tween(700) else snap(),
+        label = "setup_cta_rotation"
+    )
+    val barShape = androidx.compose.foundation.shape.RoundedCornerShape(
+        topStart = 34.dp,
+        topEnd = 34.dp
+    )
 
-        if (currentStepIndex < totalSteps - 1) {
-            Button(
-                onClick = onNext,
-                shape = ShapeCache.smooth12
+    Surface(
+        modifier = modifier.shadow(8.dp, barShape, clip = true),
+        shape = barShape,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        tonalElevation = 3.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            SetupProgressBar(
+                currentStepIndex = currentStepIndex,
+                totalSteps = totalSteps,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Continue", fontWeight = FontWeight.Bold, maxLines = 1)
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                if (currentStepIndex > 0) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous setup step")
+                    }
+                }
+
+                AnimatedContent(
+                    targetState = currentStepIndex,
+                    modifier = Modifier.weight(1f),
+                    transitionSpec = {
+                        if (!motionEnabled) {
+                            fadeIn(snap()) togetherWith fadeOut(snap())
+                        } else if (targetState > initialState) {
+                            (slideInVertically { it / 2 } + fadeIn()) togetherWith
+                                (slideOutVertically { -it / 2 } + fadeOut())
+                        } else {
+                            (slideInVertically { -it / 2 } + fadeIn()) togetherWith
+                                (slideOutVertically { it / 2 } + fadeOut())
+                        }.using(SizeTransform(clip = false))
+                    },
+                    label = "setup_step_label"
+                ) { index ->
+                    Column {
+                        Text(
+                            text = if (index == 0) "Let's get protected" else "Step ${index + 1} of $totalSteps",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = SetupStep.values()[index].title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (!canContinue) {
+                            Text(
+                                text = "Complete this permission first",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = onNext,
+                    enabled = canContinue,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(
+                        topStart = topStart,
+                        topEnd = topEnd,
+                        bottomStart = bottomStart,
+                        bottomEnd = bottomEnd
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp),
+                    modifier = Modifier
+                        .height(58.dp)
+                        .rotate(rotation)
+                ) {
+                    AnimatedContent(
+                        targetState = currentStepIndex == totalSteps - 1,
+                        modifier = Modifier.rotate(-rotation),
+                        transitionSpec = {
+                            (fadeIn(tween(220, delayMillis = 80)) + scaleIn(initialScale = 0.85f)) togetherWith
+                                (fadeOut(tween(90)) + scaleOut(targetScale = 0.85f))
+                        },
+                        label = "setup_cta_content"
+                    ) { isFinished ->
+                        if (isFinished) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.Check, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Start", fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Continue setup")
+                        }
+                    }
+                }
             }
         }
     }
